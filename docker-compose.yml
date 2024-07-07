@@ -7,4 +7,4 @@ services:
       - ./service_account.json:/app/service_account.json
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/service_account.json
-    command: python update_google_sheets.py
+    command: python crypto_analysis.py
