@@ -3,3 +3,5 @@ pandas
 gspread
 oauth2client
 numpy
+schedule
+pytz
