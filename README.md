@@ -4,6 +4,8 @@
 
 This project fetches and analyzes cryptocurrency market data from top exchanges using the CCXT library. It collects information on trading pairs, calculates liquidity metrics, and determines long/short ratios. The data is then processed and uploaded to a Google Sheet for easy visualization and further analysis.
 
+## **Have to run a VPN if you can't KYC with the exchanges!**
+
 ## Features
 
 - Fetches market data from multiple exchanges (Binance, Bybit, HitBTC, Coinbase Advanced)
@@ -32,17 +34,19 @@ This addition will help in identifying potential market trends and making more i
 
 ## Setup
 
-1. Clone the repository
-2. Install the required packages:
+1. Clone the repository: 
+      git clone https://github.com/jeffAquinn/Crypto-Analysis-with-Machine-Learning
+   
+3. Install the required packages:
    ```
    pip install ccxt pandas gspread oauth2client numpy
    ```
-3. Set up Google Sheets API:
+4. Set up Google Sheets API:
    - Create a Google Cloud project
    - Enable Google Sheets API
    - Create a service account and download the JSON key
    - Rename the key to `service_account.json` and place it in the project root
-4. Update the `SPREADSHEET_NAME` variable in the script with your Google Sheet name
+5. Update the `SPREADSHEET_NAME` variable in the script with your Google Sheet name
 
 ## Usage
 
