@@ -3,10 +3,10 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np
-import schedule
-import time
 from datetime import datetime
 import pytz
+import schedule
+import time
 
 # Google Sheets credentials
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -96,7 +96,7 @@ def fetch_and_analyze_data():
 
     df = pd.DataFrame(all_data)
     df.columns = [
-        'Exchange', 'Symbol', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 
+        'Exchange', 'Symbol', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity',
         'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio'
     ]
     return df
@@ -107,22 +107,40 @@ def update_google_sheets():
     # Replace NaN and infinite values with suitable defaults
     df.replace([np.nan, np.inf, -np.inf], 0, inplace=True)
 
+    # Add current date in the format "Jul/7/2024"
+    mountain_time = datetime.now(pytz.timezone('US/Mountain'))
+    date_str = mountain_time.strftime('%b/%d/%Y')
+
     try:
         worksheet = sh.get_worksheet(0)  # Assuming the first sheet is where you want to update data
-        worksheet.clear()  # Clear existing data
-        worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+        existing_data = worksheet.get_all_values()
+        headers = ['Date'] + df.columns.values.tolist()
+        
+        new_data = [[date_str] + row for row in df.values.tolist()]
+
+        # Prepare data to update
+        updated_data = [headers] + new_data + existing_data[1:]
+
+        # Update worksheet with the new data
+        worksheet.clear()
+        worksheet.update(updated_data)
         print("Data updated successfully.")
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
 
-def schedule_task():
-    tz = pytz.timezone('US/Mountain')
-    schedule_time = datetime.now(tz).replace(hour=7, minute=0, second=0, microsecond=0)
-    schedule.every().day.at(schedule_time.strftime("%H:%M")).do(update_google_sheets)
+def run_scheduler():
+    update_google_sheets()  # Initial run
+
+    # Schedule the update every morning at 7 AM US Mountain Time
+    schedule.every().day.at("07:00").do(update_google_sheets)
 
     while True:
+        # Get current time in US/Mountain timezone
+        now = datetime.now(pytz.timezone('US/Mountain'))
+        if now.strftime('%H:%M') == '07:00':
+            update_google_sheets()
         schedule.run_pending()
-        time.sleep(60)
+        time.sleep(60)  # Sleep for 60 seconds
 
 if __name__ == "__main__":
-    schedule_task()
+    run_scheduler()
