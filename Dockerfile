@@ -13,5 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Make port 80 available to the world outside this container
 EXPOSE 80
 
-# Run update_google_sheets.py when the container launches
-CMD ["python", "crypto_analysis.py"]
+# Run the scheduling script when the container launches
+CMD ["sh", "-c", "python crypto_analysis.py && tail -f /dev/null"]
