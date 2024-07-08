@@ -8,4 +8,4 @@ services:
       - ./service_account.json:/app/service_account.json:rw
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/service_account.json
-    # network_mode: crypto-analysis-with-machine-learning_default  # Remove or comment out this line
+    command: ["python", "crypto_analysis.py"]
