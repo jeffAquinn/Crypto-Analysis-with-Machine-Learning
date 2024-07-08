@@ -3,6 +3,10 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np
+import schedule
+import time
+from datetime import datetime
+import pytz
 
 # Google Sheets credentials
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -19,7 +23,7 @@ exchanges = {
     'binance': ccxt.binance(),
     'bybit': ccxt.bybit(),
     'hitbtc': ccxt.hitbtc(),
-    'coinbaseadvanced' : ccxt.coinbaseadvanced()
+    'coinbaseadvanced': ccxt.coinbaseadvanced()
 }
 
 # Trading pairs
@@ -111,5 +115,14 @@ def update_google_sheets():
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
 
+def schedule_task():
+    tz = pytz.timezone('US/Mountain')
+    schedule_time = datetime.now(tz).replace(hour=7, minute=0, second=0, microsecond=0)
+    schedule.every().day.at(schedule_time.strftime("%H:%M")).do(update_google_sheets)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
 if __name__ == "__main__":
-    update_google_sheets()
+    schedule_task()
