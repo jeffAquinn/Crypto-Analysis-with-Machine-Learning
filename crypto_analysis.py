@@ -1,3 +1,4 @@
+# crypto_analysis.py
 import ccxt
 import pandas as pd
 import gspread
@@ -7,6 +8,7 @@ from datetime import datetime
 import pytz
 import schedule
 import time
+from rf import run_rf  # Import the function from rf.py
 
 # Google Sheets credentials
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -161,15 +163,18 @@ def update_google_sheets():
 
 def run_scheduler():
     update_google_sheets()  # Initial run
+    run_rf()  # Run rf.py logic after updating Google Sheets
 
     # Schedule the update every morning at 7 AM US Mountain Time
     schedule.every(4).hours.do(update_google_sheets)
+    schedule.every(4).hours.do(run_rf)  # Schedule rf.py logic to run after updating Google Sheets
 
     while True:
         # Get current time in US/Mountain timezone
         now = datetime.now(pytz.timezone('US/Mountain'))
         if now.strftime('%H:%M') == '07:00':
             update_google_sheets()
+            run_rf()  # Run rf.py logic after updating Google Sheets
         schedule.run_pending()
         time.sleep(60)  # Sleep for 60 seconds
 
