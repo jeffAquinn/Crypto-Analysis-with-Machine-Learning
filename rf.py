@@ -1,4 +1,3 @@
-# rf.py
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
@@ -28,11 +27,26 @@ SHEET_NAMES = {
 
 def get_data(sheet_name):
     worksheet = sh.worksheet(sheet_name)
-    data = worksheet.get_all_records()
-    df = pd.DataFrame(data)
+    data = worksheet.get_all_values()
+    
+    # Extract the header (first row) for column names
+    header = data[0]
+    
+    # Extract the data starting from the second row
+    data = data[1:]
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(data, columns=header)
+    
+    # Convert numeric columns to appropriate data types
+    numeric_columns = ['Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    for col in numeric_columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    
     return df
 
 def train_predict(df):
+    # Fill NaN values generated from the conversion with 0 or another suitable value
     df.fillna(0, inplace=True)
     df.replace([np.inf, -np.inf], 0, inplace=True)
     
