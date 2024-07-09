@@ -93,30 +93,36 @@ def update_google_sheets_with_predictions():
         account_balance = 1000  # Initial account balance
         risk_amount = account_balance * 0.02  # 2% risk
         
-        # Update account balance based on predictions
-        if predicted_price <= stop_loss_price:
-            account_balance -= risk_amount * 0.03
-        elif predicted_price >= take_profit_price:
-            account_balance += risk_amount * 0.09
-        
         # Append new predictions to the "Random Forest" Google Sheet
         worksheet_name = "Random Forest"
         worksheet = sh.worksheet(worksheet_name)
+        
+        # Ensure headers are set
+        headers = ['Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 
+                   'Prediction Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price']
+        
+        existing_headers = worksheet.row_values(1)
+        
+        if existing_headers != headers:
+            worksheet.clear()
+            worksheet.append_row(headers)
+        
+        # Insert new row with data below headers
         new_row = {
             'Date': datetime.now(pytz.timezone('US/Mountain')).strftime('%b/%d/%Y'),
-            'Starting Balance': 1000,
-            'Bullish/Bearish': 'Bullish' if predicted_direction == 1 else 'Bearish',
+            'Sheet Name': sheet_name,
+            'Account Balance': account_balance,
+            'Bullish or Bearish': 'Bullish' if predicted_direction == 1 else 'Bearish',
             'Prediction Price': predicted_price,
             'Entry Price': entry_price,
             'Stop Loss Price': stop_loss_price,
-            'Take Profit Price': take_profit_price,
-            'Account Balance': account_balance
+            'Take Profit Price': take_profit_price
         }
         worksheet.append_row(list(new_row.values()))
-
+        
         # Format Bullish/Bearish cell
-        cell = worksheet.find(new_row['Bullish/Bearish'])
-        if new_row['Bullish/Bearish'] == 'Bullish':
+        cell = worksheet.find(new_row['Bullish or Bearish'])
+        if new_row['Bullish or Bearish'] == 'Bullish':
             worksheet.format(cell.address, {'backgroundColor': {'red': 0, 'green': 1, 'blue': 0}})
         else:
             worksheet.format(cell.address, {'backgroundColor': {'red': 1, 'green': 0, 'blue': 0}})
