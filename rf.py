@@ -1,3 +1,4 @@
+# rf.py
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
@@ -7,7 +8,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from datetime import datetime
 import pytz
-import requests
 
 # Google Sheets credentials
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -25,9 +25,6 @@ SHEET_NAMES = {
     'SOL/USDT': 'SOL',
     'ATOM/USDT': 'ATOM'
 }
-
-# Webhook URL for sending predictions
-WEBHOOK_URL = 'http://your-webhook-server-url/webhook'
 
 def get_data(sheet_name):
     worksheet = sh.worksheet(sheet_name)
@@ -65,7 +62,7 @@ def train_predict(df):
     
     return price_pred[-1], direction_pred[-1]  # Return the last prediction as the next period's prediction
 
-def update_google_sheets():
+def update_google_sheets_with_predictions():
     for symbol, sheet_name in SHEET_NAMES.items():
         df = get_data(sheet_name)
         
@@ -109,17 +106,10 @@ def update_google_sheets():
             worksheet.format(cell.address, {'backgroundColor': {'red': 0, 'green': 1, 'blue': 0}})
         else:
             worksheet.format(cell.address, {'backgroundColor': {'red': 1, 'green': 0, 'blue': 0}})
-        
-        # Send predictions to Webhook URL
-        send_webhook_prediction(new_row)
 
-def send_webhook_prediction(data):
-    try:
-        response = requests.post(WEBHOOK_URL, json=data)
-        response.raise_for_status()
-        print('Webhook sent successfully.')
-    except requests.exceptions.HTTPError as err:
-        print(f'Error sending webhook: {err}')
+# Function to be called from crypto_analysis.py
+def run_rf():
+    update_google_sheets_with_predictions()
 
 if __name__ == "__main__":
-    update_google_sheets()
+    run_rf()
