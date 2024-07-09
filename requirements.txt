@@ -5,3 +5,4 @@ oauth2client
 numpy
 schedule
 pytz
+scikit-learn
