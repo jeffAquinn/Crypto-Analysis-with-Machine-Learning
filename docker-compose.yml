@@ -1,11 +1,10 @@
 version: '3.8'
 
 services:
-  ccxt-data-fetcher:
-    image: crypto-analysis-with-machine-learning-ccxt-data-fetcher
+  crypto_analysis:
     build: .
     volumes:
-      - ./service_account.json:/app/service_account.json:rw
+      - .:/app
+    restart: unless-stopped
     environment:
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/service_account.json
-    command: ["python", "crypto_analysis.py"]
+      - GOOGLE_APPLICATION_CREDENTIALS=service_account.json
