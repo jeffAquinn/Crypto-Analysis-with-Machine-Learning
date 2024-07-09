@@ -20,10 +20,10 @@ sh = gc.open(SPREADSHEET_NAME)
 
 # CCXT exchanges
 exchanges = {
-    'binance': ccxt.binance(),
-    'bybit': ccxt.bybit(),
-    'hitbtc': ccxt.hitbtc(),
-    'coinbaseadvanced': ccxt.coinbaseadvanced()
+    'Binance': ccxt.binance(),
+    'Bybit': ccxt.bybit(),
+    'HitBTC': ccxt.hitbtc(),
+    'Coinbase': ccxt.coinbaseadvanced()
 }
 
 # Trading pairs
@@ -163,7 +163,7 @@ def run_scheduler():
     update_google_sheets()  # Initial run
 
     # Schedule the update every morning at 7 AM US Mountain Time
-    schedule.every().day.at("07:00").do(update_google_sheets)
+    schedule.every(4).hours.do(update_google_sheets)
 
     while True:
         # Get current time in US/Mountain timezone
