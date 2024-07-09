@@ -32,12 +32,12 @@ TRADING_PAIRS = ['BTC/USDT', 'SOL/USDT', 'ATOM/USDT']
 def fetch_market_data(exchange, symbol):
     try:
         ticker = exchange.fetch_ticker(symbol)
-        orderbook = exchange.fetch_order_book(symbol)
+        l2_orderbook = exchange.fetch_l2_order_book(symbol)
         trades = exchange.fetch_trades(symbol)
 
         return {
             'symbol': symbol,
-            'orderbook': orderbook,
+            'l2_orderbook': l2_orderbook,
             'trades': trades,
             'ticker': ticker
         }
@@ -45,9 +45,9 @@ def fetch_market_data(exchange, symbol):
         print(f"Error fetching data for {symbol} on {exchange.name}: {str(e)}")
         return None
 
-def analyze_liquidity(orderbook, price):
-    bids = orderbook['bids']
-    asks = orderbook['asks']
+def analyze_liquidity(l2_orderbook, price):
+    bids = l2_orderbook['bids']
+    asks = l2_orderbook['asks']
 
     bid_liquidity = sum(bid[1] for bid in bids)
     ask_liquidity = sum(ask[1] for ask in asks)
@@ -77,8 +77,12 @@ def fetch_and_analyze_data():
             data = fetch_market_data(exchange, symbol)
             if data:
                 price = data['ticker']['last']
-                liquidity_analysis = analyze_liquidity(data['orderbook'], price)
+                liquidity_analysis = analyze_liquidity(data['l2_orderbook'], price)
                 leverage_analysis = analyze_leverage_ratio(data['trades'])
+
+                # Adding L2 order book data converted to USD
+                l2_bids_usd = ', '.join([f"${bid[0] * bid[1]:.2f}" for bid in data['l2_orderbook']['bids'][:5]])
+                l2_asks_usd = ', '.join([f"${ask[0] * ask[1]:.2f}" for ask in data['l2_orderbook']['asks'][:5]])
 
                 all_data.append({
                     'exchange': exchange_name,
@@ -91,13 +95,15 @@ def fetch_and_analyze_data():
                     'bid_liquidity_usd': liquidity_analysis['bid_liquidity_usd'],
                     'ask_liquidity_usd': liquidity_analysis['ask_liquidity_usd'],
                     'long_ratio': leverage_analysis['long_ratio'],
-                    'short_ratio': leverage_analysis['short_ratio']
+                    'short_ratio': leverage_analysis['short_ratio'],
+                    'L2 Bids USD': l2_bids_usd,
+                    'L2 Asks USD': l2_asks_usd
                 })
 
     df = pd.DataFrame(all_data)
     df.columns = [
         'Exchange', 'Symbol', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity',
-        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio'
+        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio', 'L2 Bids USD', 'L2 Asks USD'
     ]
     return df
 
