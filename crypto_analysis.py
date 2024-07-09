@@ -27,7 +27,11 @@ exchanges = {
 }
 
 # Trading pairs
-TRADING_PAIRS = ['BTC/USDT', 'SOL/USDT', 'ATOM/USDT']
+TRADING_PAIRS = {
+    'BTC/USDT': 'BTC',
+    'SOL/USDT': 'SOL',
+    'ATOM/USDT': 'ATOM'
+}
 
 def fetch_market_data(exchange, symbol):
     try:
@@ -70,10 +74,10 @@ def analyze_leverage_ratio(trades):
     }
 
 def fetch_and_analyze_data():
-    all_data = []
+    all_data = {symbol: [] for symbol in TRADING_PAIRS.keys()}
 
     for exchange_name, exchange in exchanges.items():
-        for symbol in TRADING_PAIRS:
+        for symbol in TRADING_PAIRS.keys():
             data = fetch_market_data(exchange, symbol)
             if data:
                 price = data['ticker']['last']
@@ -90,7 +94,7 @@ def fetch_and_analyze_data():
                 while len(l2_asks_usd) < 5:
                     l2_asks_usd.append(0)
 
-                all_data.append({
+                all_data[symbol].append({
                     'exchange': exchange_name,
                     'symbol': symbol,
                     'price': price,
@@ -114,39 +118,44 @@ def fetch_and_analyze_data():
                     'L2 Ask 5 USD': l2_asks_usd[4]
                 })
 
-    df = pd.DataFrame(all_data)
-    df.columns = [
-        'Exchange', 'Symbol', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity',
-        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio',
-        'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 'L2 Bid 4 USD', 'L2 Bid 5 USD',
-        'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
-    ]
-    return df
+    dfs = {symbol: pd.DataFrame(data) for symbol, data in all_data.items()}
+    for symbol, df in dfs.items():
+        df.columns = [
+            'Exchange', 'Symbol', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity',
+            'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio',
+            'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 'L2 Bid 4 USD', 'L2 Bid 5 USD',
+            'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
+        ]
+    return dfs
 
 def update_google_sheets():
-    df = fetch_and_analyze_data()
+    dfs = fetch_and_analyze_data()
 
     # Replace NaN and infinite values with suitable defaults
-    df.replace([np.nan, np.inf, -np.inf], 0, inplace=True)
+    for symbol, df in dfs.items():
+        df.replace([np.nan, np.inf, -np.inf], 0, inplace=True)
 
     # Add current date in the format "Jul/7/2024"
     mountain_time = datetime.now(pytz.timezone('US/Mountain'))
     date_str = mountain_time.strftime('%b/%d/%Y')
 
     try:
-        worksheet = sh.get_worksheet(0)  # Assuming the first sheet is where you want to update data
-        existing_data = worksheet.get_all_values()
-        headers = ['Date'] + df.columns.values.tolist()
-        
-        new_data = [[date_str] + row for row in df.values.tolist()]
+        for symbol, sheet_name in TRADING_PAIRS.items():
+            df = dfs[symbol]
 
-        # Prepare data to update
-        updated_data = [headers] + new_data + existing_data[1:]
+            worksheet = sh.worksheet(sheet_name)
+            existing_data = worksheet.get_all_values()
+            headers = ['Date'] + df.columns.values.tolist()
+            
+            new_data = [[date_str] + row for row in df.values.tolist()]
 
-        # Update worksheet with the new data
-        worksheet.clear()
-        worksheet.update(updated_data)
-        print("Data updated successfully.")
+            # Prepare data to update
+            updated_data = [headers] + new_data + existing_data[1:]
+
+            # Update worksheet with the new data
+            worksheet.clear()
+            worksheet.update(updated_data)
+            print(f"Data for {symbol} updated successfully.")
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
 
