@@ -6,3 +6,5 @@ numpy
 schedule
 pytz
 scikit-learn
+Flask
+requests
