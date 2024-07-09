@@ -81,8 +81,14 @@ def fetch_and_analyze_data():
                 leverage_analysis = analyze_leverage_ratio(data['trades'])
 
                 # Adding L2 order book data converted to USD
-                l2_bids_usd = ', '.join([f"${bid[0] * bid[1]:.2f}" for bid in data['l2_orderbook']['bids'][:5]])
-                l2_asks_usd = ', '.join([f"${ask[0] * ask[1]:.2f}" for ask in data['l2_orderbook']['asks'][:5]])
+                l2_bids_usd = [bid[0] * bid[1] for bid in data['l2_orderbook']['bids'][:5]]
+                l2_asks_usd = [ask[0] * ask[1] for ask in data['l2_orderbook']['asks'][:5]]
+
+                # Ensure there are 5 levels, fill missing with 0
+                while len(l2_bids_usd) < 5:
+                    l2_bids_usd.append(0)
+                while len(l2_asks_usd) < 5:
+                    l2_asks_usd.append(0)
 
                 all_data.append({
                     'exchange': exchange_name,
@@ -96,14 +102,24 @@ def fetch_and_analyze_data():
                     'ask_liquidity_usd': liquidity_analysis['ask_liquidity_usd'],
                     'long_ratio': leverage_analysis['long_ratio'],
                     'short_ratio': leverage_analysis['short_ratio'],
-                    'L2 Bids USD': l2_bids_usd,
-                    'L2 Asks USD': l2_asks_usd
+                    'L2 Bid 1 USD': l2_bids_usd[0],
+                    'L2 Bid 2 USD': l2_bids_usd[1],
+                    'L2 Bid 3 USD': l2_bids_usd[2],
+                    'L2 Bid 4 USD': l2_bids_usd[3],
+                    'L2 Bid 5 USD': l2_bids_usd[4],
+                    'L2 Ask 1 USD': l2_asks_usd[0],
+                    'L2 Ask 2 USD': l2_asks_usd[1],
+                    'L2 Ask 3 USD': l2_asks_usd[2],
+                    'L2 Ask 4 USD': l2_asks_usd[3],
+                    'L2 Ask 5 USD': l2_asks_usd[4]
                 })
 
     df = pd.DataFrame(all_data)
     df.columns = [
         'Exchange', 'Symbol', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity',
-        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio', 'L2 Bids USD', 'L2 Asks USD'
+        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio',
+        'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 'L2 Bid 4 USD', 'L2 Bid 5 USD',
+        'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
     ]
     return df
 
