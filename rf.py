@@ -124,9 +124,71 @@ def update_google_sheets_with_predictions():
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
 
+def format_cell_range(sheet, cell_range, cell_format):
+    body = {
+        "requests": [
+            {
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet.id,
+                        "startRowIndex": cell_range['startRowIndex'],
+                        "endRowIndex": cell_range['endRowIndex'],
+                        "startColumnIndex": cell_range['startColumnIndex'],
+                        "endColumnIndex": cell_range['endColumnIndex']
+                    },
+                    "cell": {
+                        "userEnteredFormat": cell_format
+                    },
+                    "fields": "userEnteredFormat.textFormat.foregroundColor"
+                }
+            }
+        ]
+    }
+    sh.batch_update(body)
+
+def apply_formatting():
+    worksheet_name = "Random Forest"
+    worksheet = sh.worksheet(worksheet_name)
+    cells = worksheet.range('D2:D')
+
+    for cell in cells:
+        if cell.value == 'Bullish':
+            cell_format = {
+                "textFormat": {
+                    "foregroundColor": {
+                        "red": 0.14,
+                        "green": 0.47,
+                        "blue": 0.0
+                    }
+                }
+            }
+            format_cell_range(worksheet, {
+                "startRowIndex": cell.row - 1,
+                "endRowIndex": cell.row,
+                "startColumnIndex": 3,
+                "endColumnIndex": 4
+            }, cell_format)
+        elif cell.value == 'Bearish':
+            cell_format = {
+                "textFormat": {
+                    "foregroundColor": {
+                        "red": 0.6,
+                        "green": 0.0,
+                        "blue": 0.0
+                    }
+                }
+            }
+            format_cell_range(worksheet, {
+                "startRowIndex": cell.row - 1,
+                "endRowIndex": cell.row,
+                "startColumnIndex": 3,
+                "endColumnIndex": 4
+            }, cell_format)
+
 # Function to be called from crypto_analysis.py
 def run_rf():
     update_google_sheets_with_predictions()
+    apply_formatting()
 
 if __name__ == "__main__":
     run_rf()
