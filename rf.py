@@ -20,9 +20,9 @@ sh = gc.open(SPREADSHEET_NAME)
 
 # Sheets corresponding to each trading pair
 SHEET_NAMES = {
-    'BTC/USDT': 'BTC',
-    'SOL/USDT': 'SOL',
-    'ATOM/USDT': 'ATOM'
+    'BTC/USDT': {'sheet_name': 'BTC', 'start_row': 2},
+    'SOL/USDT': {'sheet_name': 'SOL', 'start_row': 3},
+    'ATOM/USDT': {'sheet_name': 'ATOM', 'start_row': 4}
 }
 
 def get_data(sheet_name):
@@ -77,55 +77,52 @@ def train_predict(df):
     return price_pred[-1], direction_pred[-1]  # Return the last prediction as the next period's prediction
 
 def update_google_sheets_with_predictions():
-    for symbol, sheet_name in SHEET_NAMES.items():
-        df = get_data(sheet_name)
-        
-        # Get predictions
-        predicted_price, predicted_direction = train_predict(df)
-        
-        # Calculate Entry Price, Stop Loss, Take Profit
-        current_price = df.iloc[-1]['Price']
-        entry_price = (current_price + predicted_price) / 2  # Enhance entry price based on current and predicted price
-        stop_loss_price = entry_price * 0.97  # 3% stop loss
-        take_profit_price = entry_price * 1.09  # 9% take profit
-        
-        # Risk management
-        account_balance = 1000  # Initial account balance
-        risk_amount = account_balance * 0.02  # 2% risk
-        
-        # Append new predictions to the "Random Forest" Google Sheet
-        worksheet_name = "Random Forest"
-        worksheet = sh.worksheet(worksheet_name)
-        
-        # Ensure headers are set
-        headers = ['Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 
-                   'Prediction Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price']
-        
-        existing_headers = worksheet.row_values(1)
-        
-        if existing_headers != headers:
+    # Get the current date in the format "Jul/7/2024"
+    mountain_time = datetime.now(pytz.timezone('US/Mountain'))
+    date_str = mountain_time.strftime('%b/%d/%Y')
+    
+    try:
+        for symbol, info in SHEET_NAMES.items():
+            sheet_name = info['sheet_name']
+            worksheet_name = "Random Forest"
+            worksheet = sh.worksheet(worksheet_name)
+            existing_data = worksheet.get_all_values()
+            headers = ['Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 
+                       'Prediction Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price']
+            
+            df = get_data(sheet_name)
+            predicted_price, predicted_direction = train_predict(df)
+            current_price = df.iloc[-1]['Price']
+            entry_price = (current_price + predicted_price) / 2
+            stop_loss_price = entry_price * 0.97
+            take_profit_price = entry_price * 1.09
+            account_balance = 1000
+            
+            new_row = {
+                'Date': date_str,
+                'Sheet Name': sheet_name,
+                'Account Balance': account_balance,
+                'Bullish or Bearish': 'Bullish' if predicted_direction == 1 else 'Bearish',
+                'Prediction Price': predicted_price,
+                'Entry Price': entry_price,
+                'Stop Loss Price': stop_loss_price,
+                'Take Profit Price': take_profit_price
+            }
+            
+            new_row_values = [new_row['Date'], new_row['Sheet Name'], new_row['Account Balance'], 
+                              new_row['Bullish or Bearish'], new_row['Prediction Price'], 
+                              new_row['Entry Price'], new_row['Stop Loss Price'], new_row['Take Profit Price']]
+            
+            new_data = [new_row_values] + existing_data[1:]
+            updated_data = [headers] + new_data
+            
             worksheet.clear()
-            worksheet.append_row(headers)
-        
-        # Insert new row with data below headers
-        new_row = {
-            'Date': datetime.now(pytz.timezone('US/Mountain')).strftime('%b/%d/%Y'),
-            'Sheet Name': sheet_name,
-            'Account Balance': account_balance,
-            'Bullish or Bearish': 'Bullish' if predicted_direction == 1 else 'Bearish',
-            'Prediction Price': predicted_price,
-            'Entry Price': entry_price,
-            'Stop Loss Price': stop_loss_price,
-            'Take Profit Price': take_profit_price
-        }
-        worksheet.append_row(list(new_row.values()))
-        
-        # Format Bullish/Bearish cell
-        cell = worksheet.find(new_row['Bullish or Bearish'])
-        if new_row['Bullish or Bearish'] == 'Bullish':
-            worksheet.format(cell.address, {'backgroundColor': {'red': 0, 'green': 1, 'blue': 0}})
-        else:
-            worksheet.format(cell.address, {'backgroundColor': {'red': 1, 'green': 0, 'blue': 0}})
+            worksheet.update(updated_data)
+            
+            print(f"Data for {symbol} updated successfully.")
+            
+    except Exception as e:
+        print(f"Error updating Google Sheets: {str(e)}")
 
 # Function to be called from crypto_analysis.py
 def run_rf():
