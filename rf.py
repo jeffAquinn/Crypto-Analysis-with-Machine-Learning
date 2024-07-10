@@ -39,7 +39,7 @@ def get_data(sheet_name):
     df = pd.DataFrame(data, columns=header)
     
     # Convert numeric columns to appropriate data types
-    numeric_columns = ['Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    numeric_columns = ['Price', 'Volume', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
     for col in numeric_columns:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     
@@ -51,7 +51,7 @@ def train_predict(df):
     df.replace([np.inf, -np.inf], 0, inplace=True)
     
     # Features for training
-    features = ['Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    features = ['Price', 'Volume', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
     
     X = df[features]
     y_price = df['Price'].shift(-1).fillna(0)  # Next period price for regression
