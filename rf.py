@@ -38,10 +38,19 @@ def get_data(sheet_name):
     # Convert to DataFrame
     df = pd.DataFrame(data, columns=header)
     
+    # Specify the relevant columns
+    relevant_columns = ['Date', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    
+    # Filter the DataFrame to keep only the relevant columns
+    df = df[relevant_columns]
+    
     # Convert numeric columns to appropriate data types
-    numeric_columns = ['Price', 'Volume', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    numeric_columns = ['Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio']
     for col in numeric_columns:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
+    
+    # Handle NaN values in the Price column by forward filling
+    df['Price'] = df['Price'].ffill()
     
     return df
 
