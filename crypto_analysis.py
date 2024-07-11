@@ -25,7 +25,6 @@ exchanges = {
     'Binance': ccxt.binance(),
     'Bybit': ccxt.bybit(),
     'HitBTC': ccxt.hitbtc(),
-    'Coinbase': ccxt.coinbaseadvanced()
 }
 
 # Trading pairs
