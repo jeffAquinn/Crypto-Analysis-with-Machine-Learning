@@ -83,7 +83,7 @@ def train_predict(df):
     direction_accuracy = accuracy_score(y_test_direction, direction_pred)
     print(f'Direction Prediction Accuracy: {direction_accuracy:.2f}')
     
-    return price_pred[-1], direction_pred[-1]  # Return the last prediction as the next period's prediction
+    return price_pred[-1], direction_pred[-1], direction_accuracy  # Return the last prediction and accuracy
 
 def update_google_sheets_with_predictions():
     # Get the current date in the format "Jul/7/2024"
@@ -96,11 +96,11 @@ def update_google_sheets_with_predictions():
             worksheet_name = "Random Forest"
             worksheet = sh.worksheet(worksheet_name)
             existing_data = worksheet.get_all_values()
-            headers = ['Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 
+            headers = ['Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 'Direction Accuracy (%)', 
                        'Prediction Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price']
             
             df = get_data(sheet_name)
-            predicted_price, predicted_direction = train_predict(df)
+            predicted_price, predicted_direction, direction_accuracy = train_predict(df)
             current_price = df.iloc[-1]['Price']
             entry_price = (current_price + predicted_price) / 2
             stop_loss_price = entry_price * 0.97
@@ -112,6 +112,7 @@ def update_google_sheets_with_predictions():
                 'Sheet Name': sheet_name,
                 'Account Balance': account_balance,
                 'Bullish or Bearish': 'Bullish' if predicted_direction == 1 else 'Bearish',
+                'Direction Accuracy (%)': f"{direction_accuracy * 100:.2f}",  # Convert to percentage
                 'Prediction Price': predicted_price,
                 'Entry Price': entry_price,
                 'Stop Loss Price': stop_loss_price,
@@ -119,8 +120,9 @@ def update_google_sheets_with_predictions():
             }
             
             new_row_values = [new_row['Date'], new_row['Sheet Name'], new_row['Account Balance'], 
-                              new_row['Bullish or Bearish'], new_row['Prediction Price'], 
-                              new_row['Entry Price'], new_row['Stop Loss Price'], new_row['Take Profit Price']]
+                              new_row['Bullish or Bearish'], new_row['Direction Accuracy (%)'],
+                              new_row['Prediction Price'], new_row['Entry Price'], 
+                              new_row['Stop Loss Price'], new_row['Take Profit Price']]
             
             new_data = [new_row_values] + existing_data[1:]
             updated_data = [headers] + new_data
