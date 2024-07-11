@@ -56,13 +56,17 @@ def analyze_liquidity(l2_orderbook, price):
 
     bid_liquidity = sum(bid[1] for bid in bids)
     ask_liquidity = sum(ask[1] for ask in asks)
+    bid_ask_spread = asks[0][0] - bids[0][0] if bids and asks else None
+    market_depth = bid_liquidity + ask_liquidity
 
     return {
         'bid_liquidity': bid_liquidity,
         'ask_liquidity': ask_liquidity,
         'bid_ask_ratio': bid_liquidity / ask_liquidity if ask_liquidity else float('inf'),
         'bid_liquidity_usd': bid_liquidity * price,
-        'ask_liquidity_usd': ask_liquidity * price
+        'ask_liquidity_usd': ask_liquidity * price,
+        'bid_ask_spread': bid_ask_spread,
+        'market_depth': market_depth
     }
 
 def analyze_leverage_ratio(trades):
@@ -84,6 +88,8 @@ def fetch_and_analyze_data():
                 price = data['ticker']['last']
                 open_price = data['ticker']['open']
                 close_price = data['ticker']['close']
+                high_price = data['ticker']['high']  
+                low_price = data['ticker']['low']  
                 liquidity_analysis = analyze_liquidity(data['l2_orderbook'], price)
                 leverage_analysis = analyze_leverage_ratio(data['trades'])
 
@@ -103,12 +109,14 @@ def fetch_and_analyze_data():
                     'price': price,
                     'open_price': open_price,
                     'close_price': close_price,
-                    'volume': data['ticker']['baseVolume'],
-                    'bid_liquidity': liquidity_analysis['bid_liquidity'],
-                    'ask_liquidity': liquidity_analysis['ask_liquidity'],
+                    'high_price': high_price,  
+                    'low_price': low_price,  
+                    'volume': data['ticker']['baseVolume'],                    
                     'bid_ask_ratio': liquidity_analysis['bid_ask_ratio'],
                     'bid_liquidity_usd': liquidity_analysis['bid_liquidity_usd'],
                     'ask_liquidity_usd': liquidity_analysis['ask_liquidity_usd'],
+                    'bid_ask_spread': liquidity_analysis['bid_ask_spread'],
+                    'market_depth': liquidity_analysis['market_depth'],
                     'long_ratio': leverage_analysis['long_ratio'],
                     'short_ratio': leverage_analysis['short_ratio'],
                     'L2 Bid 1 USD': l2_bids_usd[0],
@@ -126,10 +134,10 @@ def fetch_and_analyze_data():
     dfs = {symbol: pd.DataFrame(data) for symbol, data in all_data.items()}
     for symbol, df in dfs.items():
         df.columns = [
-            'Exchange', 'Symbol', 'Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity',
-            'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio',
-            'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 'L2 Bid 4 USD', 'L2 Bid 5 USD',
-            'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
+            'Exchange', 'Symbol', 'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
+            'Bid Ask Spread', 'Market Depth', 'Bid Ask Ratio', 'Bid Liquidity USD', 
+            'Ask Liquidity USD', 'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
+            'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
         ]
     return dfs
 
