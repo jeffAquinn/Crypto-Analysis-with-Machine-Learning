@@ -39,13 +39,13 @@ def get_data(sheet_name):
     df = pd.DataFrame(data, columns=header)
     
     # Specify the relevant columns
-    relevant_columns = ['Date', 'Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    relevant_columns = ['Date', 'Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
     
     # Filter the DataFrame to keep only the relevant columns
     df = df[relevant_columns]
     
     # Convert numeric columns to appropriate data types
-    numeric_columns = ['Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio']
+    numeric_columns = ['Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio']
     for col in numeric_columns:
         df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
     
@@ -60,7 +60,7 @@ def train_predict(df):
     df.replace([np.inf, -np.inf], 0, inplace=True)
     
     # Features for training
-    features = ['Price', 'Volume', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    features = ['Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
     
     X = df[features]
     y_price = df['Price'].shift(-1).fillna(0)  # Next period price for regression
