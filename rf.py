@@ -107,6 +107,19 @@ def train_predict(df):
     
     return price_pred[-1], direction_pred[-1], direction_accuracy  # Return the last prediction and accuracy
 
+def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
+    # Long Entry
+    long_entry = (current_price + predicted_price) / 2
+    long_stop_loss = long_entry * 0.97
+    long_take_profit = long_entry * 1.09
+    
+    # Short Entry
+    short_entry = (current_price + predicted_price) / 2
+    short_stop_loss = short_entry * 1.03
+    short_take_profit = short_entry * 0.91
+    
+    return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
+
 def update_google_sheets_with_predictions():
     # Get the current date in the format "Jul/7/2024"
     mountain_time = datetime.now(pytz.timezone('US/Mountain'))
@@ -119,16 +132,19 @@ def update_google_sheets_with_predictions():
             existing_data = worksheet.get_all_values()
             headers = [
                 'Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 
-                'Direction Accuracy (%)', 'Prediction Price', 'Entry Price', 
-                'Stop Loss Price', 'Take Profit Price'
+                'Direction Accuracy (%)', 'Prediction Price', 
+                'Long Entry', 'Long Stop Loss', 'Long Take Profit',
+                'Short Entry', 'Short Stop Loss', 'Short Take Profit'
             ]
             
             df = get_data(sheet_name)
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
             current_price = df.iloc[-1]['Price']
-            entry_price = (current_price + predicted_price) / 2
-            stop_loss_price = entry_price * 0.97
-            take_profit_price = entry_price * 1.09
+            
+            # Calculate long and short entries, stop loss, and take profit
+            (long_entry, long_stop_loss, long_take_profit,
+             short_entry, short_stop_loss, short_take_profit) = calculate_entry_stop_loss_take_profit(current_price, predicted_price)
+            
             account_balance = 1000
             
             new_row = {
@@ -138,16 +154,19 @@ def update_google_sheets_with_predictions():
                 'Bullish or Bearish': 'Bullish' if predicted_direction == 1 else 'Bearish',
                 'Direction Accuracy (%)': f"{direction_accuracy * 100:.2f}",  # Convert to percentage
                 'Prediction Price': predicted_price,
-                'Entry Price': entry_price,
-                'Stop Loss Price': stop_loss_price,
-                'Take Profit Price': take_profit_price
+                'Long Entry': long_entry,
+                'Long Stop Loss': long_stop_loss,
+                'Long Take Profit': long_take_profit,
+                'Short Entry': short_entry,
+                'Short Stop Loss': short_stop_loss,
+                'Short Take Profit': short_take_profit
             }
             
             new_row_values = [
                 new_row['Date'], new_row['Sheet Name'], new_row['Account Balance'], 
                 new_row['Bullish or Bearish'], new_row['Direction Accuracy (%)'],
-                new_row['Prediction Price'], new_row['Entry Price'], 
-                new_row['Stop Loss Price'], new_row['Take Profit Price']
+                new_row['Prediction Price'], new_row['Long Entry'], new_row['Long Stop Loss'], new_row['Long Take Profit'],
+                new_row['Short Entry'], new_row['Short Stop Loss'], new_row['Short Take Profit']
             ]
             
             new_data = [new_row_values] + existing_data[1:]
