@@ -1,3 +1,4 @@
+# rf.py
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
@@ -20,9 +21,9 @@ sh = gc.open(SPREADSHEET_NAME)
 
 # Sheets corresponding to each trading pair
 SHEET_NAMES = {
-    'BTC/USDT': {'sheet_name': 'BTC', 'start_row': 2},
-    'SOL/USDT': {'sheet_name': 'SOL', 'start_row': 3},
-    'ATOM/USDT': {'sheet_name': 'ATOM', 'start_row': 4}
+    'BTC/USDT': 'BTC',
+    'SOL/USDT': 'SOL',
+    'ATOM/USDT': 'ATOM'
 }
 
 def get_data(sheet_name):
@@ -39,13 +40,27 @@ def get_data(sheet_name):
     df = pd.DataFrame(data, columns=header)
     
     # Specify the relevant columns
-    relevant_columns = ['Date', 'Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    relevant_columns = [
+        'Date', 'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
+        'Bid Ask Spread', 'Market Depth', 
+        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 
+        'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
+        'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 
+        'L2 Ask 4 USD', 'L2 Ask 5 USD'
+    ]
     
     # Filter the DataFrame to keep only the relevant columns
     df = df[relevant_columns]
     
     # Convert numeric columns to appropriate data types
-    numeric_columns = ['Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity', 'Ask Liquidity', 'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio']
+    numeric_columns = [
+        'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
+        'Bid Ask Spread', 'Market Depth', 
+        'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 
+        'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
+        'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 
+        'L2 Ask 4 USD', 'L2 Ask 5 USD'
+    ]
     for col in numeric_columns:
         df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
     
@@ -60,7 +75,14 @@ def train_predict(df):
     df.replace([np.inf, -np.inf], 0, inplace=True)
     
     # Features for training
-    features = ['Price', 'Open Price', 'Close Price', 'Volume', 'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Ratio', 'Long Ratio', 'Short Ratio']
+    features = [
+        'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
+        'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Spread', 'Market Depth', 
+        'Bid Ask Ratio', 'Long Ratio', 'Short Ratio', 
+        'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
+        'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 
+        'L2 Ask 4 USD', 'L2 Ask 5 USD'
+    ]
     
     X = df[features]
     y_price = df['Price'].shift(-1).fillna(0)  # Next period price for regression
@@ -91,13 +113,15 @@ def update_google_sheets_with_predictions():
     date_str = mountain_time.strftime('%b/%d/%Y')
     
     try:
-        for symbol, info in SHEET_NAMES.items():
-            sheet_name = info['sheet_name']
+        for symbol, sheet_name in SHEET_NAMES.items():
             worksheet_name = "Random Forest"
             worksheet = sh.worksheet(worksheet_name)
             existing_data = worksheet.get_all_values()
-            headers = ['Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 'Direction Accuracy (%)', 
-                       'Prediction Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price']
+            headers = [
+                'Date', 'Sheet Name', 'Account Balance', 'Bullish or Bearish', 
+                'Direction Accuracy (%)', 'Prediction Price', 'Entry Price', 
+                'Stop Loss Price', 'Take Profit Price'
+            ]
             
             df = get_data(sheet_name)
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
@@ -119,10 +143,12 @@ def update_google_sheets_with_predictions():
                 'Take Profit Price': take_profit_price
             }
             
-            new_row_values = [new_row['Date'], new_row['Sheet Name'], new_row['Account Balance'], 
-                              new_row['Bullish or Bearish'], new_row['Direction Accuracy (%)'],
-                              new_row['Prediction Price'], new_row['Entry Price'], 
-                              new_row['Stop Loss Price'], new_row['Take Profit Price']]
+            new_row_values = [
+                new_row['Date'], new_row['Sheet Name'], new_row['Account Balance'], 
+                new_row['Bullish or Bearish'], new_row['Direction Accuracy (%)'],
+                new_row['Prediction Price'], new_row['Entry Price'], 
+                new_row['Stop Loss Price'], new_row['Take Profit Price']
+            ]
             
             new_data = [new_row_values] + existing_data[1:]
             updated_data = [headers] + new_data

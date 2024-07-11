@@ -42,9 +42,9 @@ def fetch_market_data(exchange, symbol):
 
         return {
             'symbol': symbol,
-            'l2_orderbook': l2_orderbook,
-            'trades': trades,
-            'ticker': ticker
+            'L2 Orderbook': l2_orderbook,
+            'Trades': trades,
+            'Ticker': ticker
         }
     except Exception as e:
         print(f"Error fetching data for {symbol} on {exchange.name}: {str(e)}")
@@ -85,17 +85,17 @@ def fetch_and_analyze_data():
         for symbol in TRADING_PAIRS.keys():
             data = fetch_market_data(exchange, symbol)
             if data:
-                price = data['ticker']['last']
-                open_price = data['ticker']['open']
-                close_price = data['ticker']['close']
-                high_price = data['ticker']['high']  
-                low_price = data['ticker']['low']  
-                liquidity_analysis = analyze_liquidity(data['l2_orderbook'], price)
-                leverage_analysis = analyze_leverage_ratio(data['trades'])
+                price = data['Ticker']['last']
+                open_price = data['Ticker']['open']
+                close_price = data['Ticker']['close']
+                high_price = data['Ticker']['high']  
+                low_price = data['Ticker']['low']  
+                liquidity_analysis = analyze_liquidity(data['L2 Orderbook'], price)
+                leverage_analysis = analyze_leverage_ratio(data['Trades'])
 
                 # Adding L2 order book data converted to USD
-                l2_bids_usd = [bid[0] * bid[1] for bid in data['l2_orderbook']['bids'][:5]]
-                l2_asks_usd = [ask[0] * ask[1] for ask in data['l2_orderbook']['asks'][:5]]
+                l2_bids_usd = [bid[0] * bid[1] for bid in data['L2 Orderbook']['bids'][:5]]
+                l2_asks_usd = [ask[0] * ask[1] for ask in data['L2 Orderbook']['asks'][:5]]
 
                 # Ensure there are 5 levels, fill missing with 0
                 while len(l2_bids_usd) < 5:
@@ -104,21 +104,21 @@ def fetch_and_analyze_data():
                     l2_asks_usd.append(0)
 
                 all_data[symbol].append({
-                    'exchange': exchange_name,
-                    'symbol': symbol,
-                    'price': price,
-                    'open_price': open_price,
-                    'close_price': close_price,
-                    'high_price': high_price,  
-                    'low_price': low_price,  
-                    'volume': data['ticker']['baseVolume'],                    
-                    'bid_ask_ratio': liquidity_analysis['bid_ask_ratio'],
-                    'bid_liquidity_usd': liquidity_analysis['bid_liquidity_usd'],
-                    'ask_liquidity_usd': liquidity_analysis['ask_liquidity_usd'],
-                    'bid_ask_spread': liquidity_analysis['bid_ask_spread'],
-                    'market_depth': liquidity_analysis['market_depth'],
-                    'long_ratio': leverage_analysis['long_ratio'],
-                    'short_ratio': leverage_analysis['short_ratio'],
+                    'Exchange': exchange_name,
+                    'Symbol': symbol,
+                    'Price': price,
+                    'Open Price': open_price,
+                    'Close Price': close_price,
+                    'High Price': high_price,  
+                    'Low Price': low_price,  
+                    'Volume': data['Ticker']['baseVolume'],
+                    'Bid Ask Spread': liquidity_analysis['bid_ask_spread'],                    
+                    'Bid Ask Ratio': liquidity_analysis['bid_ask_ratio'],
+                    'Bid Liquidity USD': liquidity_analysis['bid_liquidity_usd'],
+                    'Ask Liquidity USD': liquidity_analysis['ask_liquidity_usd'],
+                    'Market Depth': liquidity_analysis['market_depth'],
+                    'Long Ratio': leverage_analysis['long_ratio'],
+                    'Short Ratio': leverage_analysis['short_ratio'],
                     'L2 Bid 1 USD': l2_bids_usd[0],
                     'L2 Bid 2 USD': l2_bids_usd[1],
                     'L2 Bid 3 USD': l2_bids_usd[2],
@@ -135,8 +135,8 @@ def fetch_and_analyze_data():
     for symbol, df in dfs.items():
         df.columns = [
             'Exchange', 'Symbol', 'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
-            'Bid Ask Spread', 'Market Depth', 'Bid Ask Ratio', 'Bid Liquidity USD', 
-            'Ask Liquidity USD', 'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
+            'Bid Ask Spread', 'Bid Ask Ratio', 'Bid Liquidity USD', 
+            'Ask Liquidity USD', 'Market Depth', 'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
             'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
         ]
     return dfs
