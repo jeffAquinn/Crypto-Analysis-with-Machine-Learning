@@ -466,33 +466,33 @@ vwap = vwap(close)
 plot(vwap, color=color.blue, title="VWAP")
 
 // WaveTrend Calculation
-n1 = input(10, "Channel Length")
-n2 = input(21, "Average Length")
-obLevel1 = input(60, "Overbought Level 1")
-obLevel2 = input(53, "Overbought Level 2")
-osLevel1 = input(-60, "Oversold Level 1")
-osLevel2 = input(-53, "Oversold Level 2")
-ap = hlc3
-esa = ema(ap, n1)
-d = ema(abs(ap - esa), n1)
-ci = (ap - esa) / (0.015 * d)
-tci = ema(ci, n2)
+n1b = input(10, "Channel Length")
+n2b = input(21, "Average Length")
+obLevel1b = input(60, "Overbought Level 1")
+obLevel2b = input(53, "Overbought Level 2")
+osLevel1b = input(-60, "Oversold Level 1")
+osLevel2b = input(-53, "Oversold Level 2")
+apb = hlc3
+esa = ema(apb, n1b)
+d = ema(abs(apb - esa), n1b)
+ci = (apb - esa) / (0.015 * d)
+tcib = ema(ci, n2b)
 
-wt1 = tci
-wt2 = sma(wt1, 4)
-cross_wt = cross(wt1, wt2)
+wt1b = tcib
+wt2b = sma(wt1b, 4)
+cross_wtb = cross(wt1b, wt2b)
 
-plot(wt1, color=color.green, title="WaveTrend1")
-plot(wt2, color=color.red, title="WaveTrend2")
-hline(obLevel1, "OverBought 1", color=color.red)
-hline(obLevel2, "OverBought 2", color=color.red)
-hline(osLevel1, "OverSold 1", color=color.green)
-hline(osLevel2, "OverSold 2", color=color.green)
-bgcolor(cross_wt ? na : color.blue, transp=90)
+plot(wt1b, color=color.green, title="WaveTrend1")
+plot(wt2b, color=color.red, title="WaveTrend2")
+hline(obLevel1b, "OverBought 1", color=color.red)
+hline(obLevel2b, "OverBought 2", color=color.red)
+hline(osLevel1b, "OverSold 1", color=color.green)
+hline(osLevel2b, "OverSold 2", color=color.green)
+bgcolor(cross_wtb ? na : color.blue, transp=90)
 
 // Money Flow Index Calculation
 mf = input(14, title="MFI Length")
-mfi = mfi(close, high, low, volume, mf)
+mfi = mfiSource
 hline(80, "OverBought", color=color.red)
 hline(20, "OverSold", color=color.green)
 plot(mfi, title="MFI", color=color.orange)
@@ -513,6 +513,6 @@ plotshape(series=signal == -1 ? 1 : na, location=location.abovebar, color=color.
 
 // Output for Python script
 var float signal_output = na
-if (bar_index == last_bar_index)
+if (barstate.islast)
     signal_output := signal
 plot(signal_output, title="Signal Output", color=color.yellow)
