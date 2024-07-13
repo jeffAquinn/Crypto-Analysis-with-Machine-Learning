@@ -458,3 +458,61 @@ fill(plot_zero, plot_mfi, color=mfiColor, transp=0, title="MFI Fill")
 obLevelHigh = hline(60, "Overbought Line", color=overboughtColor)
 osLevelLow = hline(-60, "Oversold Line", color=oversoldColor)
 
+//////////////-----------------------------}
+//Trading Bot 
+
+// VWAP
+vwap = vwap(close)
+plot(vwap, color=color.blue, title="VWAP")
+
+// WaveTrend Calculation
+n1 = input(10, "Channel Length")
+n2 = input(21, "Average Length")
+obLevel1 = input(60, "Overbought Level 1")
+obLevel2 = input(53, "Overbought Level 2")
+osLevel1 = input(-60, "Oversold Level 1")
+osLevel2 = input(-53, "Oversold Level 2")
+ap = hlc3
+esa = ema(ap, n1)
+d = ema(abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ema(ci, n2)
+
+wt1 = tci
+wt2 = sma(wt1, 4)
+cross_wt = cross(wt1, wt2)
+
+plot(wt1, color=color.green, title="WaveTrend1")
+plot(wt2, color=color.red, title="WaveTrend2")
+hline(obLevel1, "OverBought 1", color=color.red)
+hline(obLevel2, "OverBought 2", color=color.red)
+hline(osLevel1, "OverSold 1", color=color.green)
+hline(osLevel2, "OverSold 2", color=color.green)
+bgcolor(cross_wt ? na : color.blue, transp=90)
+
+// Money Flow Index Calculation
+mf = input(14, title="MFI Length")
+mfi = mfi(close, high, low, volume, mf)
+hline(80, "OverBought", color=color.red)
+hline(20, "OverSold", color=color.green)
+plot(mfi, title="MFI", color=color.orange)
+
+// Signals
+var signal = 0
+if (crossover(vwap, 0))
+    signal := 1  // Bullish
+if (crossunder(vwap, 0))
+    signal := -1 // Bearish
+if (mfi < 20 and crossover(wt1, wt2))
+    signal := 1  // Bullish
+if (mfi > 80 and crossunder(wt1, wt2))
+    signal := -1 // Bearish
+
+plotshape(series=signal == 1 ? 1 : na, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=signal == -1 ? 1 : na, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Output for Python script
+var float signal_output = na
+if (bar_index == last_bar_index)
+    signal_output := signal
+plot(signal_output, title="Signal Output", color=color.yellow)
