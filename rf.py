@@ -146,7 +146,7 @@ def update_google_sheets_with_predictions():
         existing_data = worksheet.get_all_values()
         headers = [
             'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
-            'Entry Price', 'Stop Loss Price', 'Take Profit Price', 'Long Trades Taken', 'Short Trades Taken'
+            'Entry Price', 'Stop Loss Price', 'Take Profit Price'
         ]
         
         account_balance = 1000  # Initial balance
@@ -167,19 +167,15 @@ def update_google_sheets_with_predictions():
                 trade_outcome = 'Profit' if current_price >= take_profit_price else 'Loss'
                 profit_loss = reward if trade_outcome == 'Profit' else -risk
                 account_balance += profit_loss
-                long_trades_taken = profit_loss if profit_loss > 0 else 0
-                short_trades_taken = 0
             else:  # Short trade
                 trade_type = 'Short'
                 trade_outcome = 'Profit' if current_price <= take_profit_price else 'Loss'
                 profit_loss = reward if trade_outcome == 'Profit' else -risk
                 account_balance += profit_loss
-                long_trades_taken = 0
-                short_trades_taken = -profit_loss if profit_loss < 0 else 0
             
             new_row = [
                 date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
-                entry_price, stop_loss_price, take_profit_price, long_trades_taken, short_trades_taken
+                entry_price, stop_loss_price, take_profit_price
             ]
             new_rows.append(new_row)
         

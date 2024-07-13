@@ -177,8 +177,8 @@ def run_scheduler():
     run_rf()  # Run rf.py logic after updating Google Sheets
 
     # Schedule the update every hour
-    schedule.every(1).hours.do(update_google_sheets)
-    schedule.every(1).hours.do(run_rf)  # Schedule rf.py logic to run after updating Google Sheets
+    schedule.every(6).hours.do(update_google_sheets)
+    schedule.every(6).hours.do(run_rf)  # Schedule rf.py logic to run after updating Google Sheets
 
     while True:
         # Get current time in US/Mountain timezone
