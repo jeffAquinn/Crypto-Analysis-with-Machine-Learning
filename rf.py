@@ -146,7 +146,7 @@ def update_google_sheets_with_predictions():
         existing_data = worksheet.get_all_values()
         headers = [
             'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
-            'Entry Price', 'Stop Loss Price', 'Take Profit Price'
+            'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
         ]
         
         account_balance = 1000  # Initial balance
@@ -167,6 +167,7 @@ def update_google_sheets_with_predictions():
                 account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
             )
 
+            # Determine trade outcome and profit/loss
             if predicted_direction == 1:  # Long trade
                 trade_type = 'Long'
                 if current_price >= take_profit_price:
@@ -177,7 +178,7 @@ def update_google_sheets_with_predictions():
                     profit_loss = -risk
                 else:
                     trade_outcome = 'Open'
-                    profit_loss = 0  # Or some other logic for ongoing trades
+                    profit_loss = 0
             else:  # Short trade
                 trade_type = 'Short'
                 if current_price <= take_profit_price:
@@ -188,13 +189,13 @@ def update_google_sheets_with_predictions():
                     profit_loss = -risk
                 else:
                     trade_outcome = 'Open'
-                    profit_loss = 0  # Or some other logic for ongoing trades
-            
-            account_balance += profit_loss
+                    profit_loss = 0
+
+            account_balance += profit_loss  # Update account balance
             
             new_row = [
                 date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
-                entry_price, stop_loss_price, take_profit_price
+                predicted_price, entry_price, stop_loss_price, take_profit_price
             ]
             new_rows.append(new_row)
         
