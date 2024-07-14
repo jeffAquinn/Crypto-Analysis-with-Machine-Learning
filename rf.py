@@ -119,17 +119,17 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     
     return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
 
-def execute_trade(account_balance, direction, current_price):
+def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit):
     if direction == 1:  # Bullish (Long)
-        entry_price = current_price
-        stop_loss_price = entry_price * 0.98
-        take_profit_price = entry_price * 1.09
+        entry_price = long_entry
+        stop_loss_price = long_stop_loss
+        take_profit_price = long_take_profit
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
     else:  # Bearish (Short)
-        entry_price = current_price
-        stop_loss_price = entry_price * 1.02
-        take_profit_price = entry_price * 0.91
+        entry_price = short_entry
+        stop_loss_price = short_stop_loss
+        take_profit_price = short_take_profit
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
 
@@ -157,21 +157,40 @@ def update_google_sheets_with_predictions():
             current_price = df.iloc[-1]['Price']
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
 
+            # Calculate entry, stop loss, and take profit prices
+            long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit = calculate_entry_stop_loss_take_profit(
+                current_price, predicted_price
+            )
+
             # Execute trade based on predictions
             entry_price, stop_loss_price, take_profit_price, risk, reward = execute_trade(
-                account_balance, predicted_direction, current_price
+                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
             )
 
             if predicted_direction == 1:  # Long trade
                 trade_type = 'Long'
-                trade_outcome = 'Profit' if current_price >= take_profit_price else 'Loss'
-                profit_loss = reward if trade_outcome == 'Profit' else -risk
-                account_balance += profit_loss
+                if current_price >= take_profit_price:
+                    trade_outcome = 'Profit'
+                    profit_loss = reward
+                elif current_price <= stop_loss_price:
+                    trade_outcome = 'Loss'
+                    profit_loss = -risk
+                else:
+                    trade_outcome = 'Open'
+                    profit_loss = 0  # Or some other logic for ongoing trades
             else:  # Short trade
                 trade_type = 'Short'
-                trade_outcome = 'Profit' if current_price <= take_profit_price else 'Loss'
-                profit_loss = reward if trade_outcome == 'Profit' else -risk
-                account_balance += profit_loss
+                if current_price <= take_profit_price:
+                    trade_outcome = 'Profit'
+                    profit_loss = reward
+                elif current_price >= stop_loss_price:
+                    trade_outcome = 'Loss'
+                    profit_loss = -risk
+                else:
+                    trade_outcome = 'Open'
+                    profit_loss = 0  # Or some other logic for ongoing trades
+            
+            account_balance += profit_loss
             
             new_row = [
                 date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
@@ -183,10 +202,11 @@ def update_google_sheets_with_predictions():
         worksheet.clear()
         worksheet.update(updated_data)
         
-        print(f"Data updated successfully.")
+        print("Data updated successfully.")
         
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
+
 
 def format_cell_range(sheet, cell_range, cell_format):
     body = {
