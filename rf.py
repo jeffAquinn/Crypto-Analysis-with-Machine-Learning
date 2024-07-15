@@ -25,6 +25,9 @@ SHEET_NAMES = {
     'ATOM/USDT': 'ATOM'
 }
 
+# Trade status tracking dictionary
+trade_status = {pair: False for pair in SHEET_NAMES.keys()}
+
 def get_data(sheet_name):
     worksheet = sh.worksheet(sheet_name)
     data = worksheet.get_all_values()
@@ -148,7 +151,9 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     
     return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
 
-def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df):
+def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name):
+    worksheet_name = "Random Forest"  # Ensure the sheet_name is set to "Random Forest"
+    
     # Calculate VWAP, WaveTrend, and MFI
     df = calculate_vwap(df)
     df = calculate_wavetrend(df)
@@ -159,31 +164,66 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
     latest_wavetrend2 = df['WaveTrend2'].iloc[-1]
     latest_mfi = df['MFI'].iloc[-1]
     
-    # Determine trade based on VWAP, WaveTrend, and MFI
-    if latest_mfi > 0 and latest_mfi < 20:  # Extreme buy condition
-        direction = 1
-    elif latest_mfi > 80 and latest_mfi < 100:  # Extreme sell condition
-        direction = 0
+    # Determine trade direction based on VWAP, WaveTrend, and MFI
+    if latest_vwap > latest_wavetrend1 and latest_vwap > latest_wavetrend2 and latest_mfi > 50:
+        trade_direction = 1  # Bullish (Long)
+    elif latest_vwap < latest_wavetrend1 and latest_vwap < latest_wavetrend2 and latest_mfi < 50:
+        trade_direction = -1  # Bearish (Short)
     else:
-        if latest_vwap > 0 and latest_wavetrend1 > latest_wavetrend2:
-            direction = 1
-        elif latest_vwap < 0 and latest_wavetrend1 < latest_wavetrend2:
-            direction = 0
+        trade_direction = 0  # No trade
     
-    if direction == 1:  # Bullish (Long)
+    # Execute trade if direction matches the predicted direction and trade hasn't been executed after update
+    if direction == 1 and trade_direction == 1 and not trade_status[sheet_name]:
         entry_price = long_entry
         stop_loss_price = long_stop_loss
         take_profit_price = long_take_profit
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
-    else:  # Bearish (Short)
+        trade_status[sheet_name] = True
+    elif direction == -1 and trade_direction == -1 and not trade_status[sheet_name]:
         entry_price = short_entry
         stop_loss_price = short_stop_loss
         take_profit_price = short_take_profit
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
-
-    return entry_price, stop_loss_price, take_profit_price, risk, reward, direction
+        trade_status[sheet_name] = True
+    else:
+        entry_price = None
+        stop_loss_price = None
+        take_profit_price = None
+        risk = 0
+        reward = 0
+    
+    # Determine trade outcome (Profit or Loss) based on current market conditions
+    current_price = df.iloc[-1]['Price']
+    if direction == 1:  # Long trade
+        if current_price >= take_profit_price:
+            trade_outcome = 'Profit'
+            profit_loss = reward
+        elif current_price <= stop_loss_price:
+            trade_outcome = 'Loss'
+            profit_loss = -risk
+        else:
+            trade_outcome = 'Open'
+            profit_loss = 0
+    elif direction == -1:  # Short trade
+        if current_price <= take_profit_price:
+            trade_outcome = 'Profit'
+            profit_loss = reward
+        elif current_price >= stop_loss_price:
+            trade_outcome = 'Loss'
+            profit_loss = -risk
+        else:
+            trade_outcome = 'Open'
+            profit_loss = 0
+    else:
+        trade_outcome = 'No Trade'
+        profit_loss = 0
+    
+    # Update account balance based on trade outcome
+    account_balance += profit_loss
+    
+    return entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss
 
 def update_google_sheets_with_predictions():
     # Get the current date in the format "Jul/7/2024"
@@ -191,7 +231,7 @@ def update_google_sheets_with_predictions():
     date_str = mountain_time.strftime('%b/%d/%Y')
     
     try:
-        worksheet_name = "Random Forest"
+        worksheet_name = "Random Forest"  # Ensure the sheet_name is set to "Random Forest"
         worksheet = sh.worksheet(worksheet_name)
         existing_data = worksheet.get_all_values()
         headers = [
@@ -221,37 +261,12 @@ def update_google_sheets_with_predictions():
             )
 
             # Execute trade based on predictions
-            entry_price, stop_loss_price, take_profit_price, risk, reward, direction = execute_trade(
-                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df
+            entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss = execute_trade(
+                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name
             )
 
-            # Determine trade outcome and profit/loss
-            if direction == 1:  # Long trade
-                trade_type = 'Long'
-                if current_price >= take_profit_price:
-                    trade_outcome = 'Profit'
-                    profit_loss = reward
-                    account_balance += profit_loss
-                elif current_price <= stop_loss_price:
-                    trade_outcome = 'Loss'
-                    profit_loss = -risk
-                    account_balance += profit_loss
-                else:
-                    trade_outcome = 'Open'
-                    profit_loss = 0
-            else:  # Short trade
-                trade_type = 'Short'
-                if current_price <= take_profit_price:
-                    trade_outcome = 'Profit'
-                    profit_loss = reward
-                    account_balance += profit_loss
-                elif current_price >= stop_loss_price:
-                    trade_outcome = 'Loss'
-                    profit_loss = -risk
-                    account_balance += profit_loss
-                else:
-                    trade_outcome = 'Open'
-                    profit_loss = 0
+            # Determine trade type based on direction
+            trade_type = 'Long' if predicted_direction == 1 else 'Short'
 
             # Append the new row
             new_row = [
@@ -268,7 +283,6 @@ def update_google_sheets_with_predictions():
         
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
-
 
 def format_cell_range(sheet, cell_range, cell_format):
     body = {
@@ -293,7 +307,7 @@ def format_cell_range(sheet, cell_range, cell_format):
     sh.batch_update(body)
 
 def apply_formatting():
-    worksheet_name = "Random Forest"
+    worksheet_name = "Random Forest"  # Ensure the sheet_name is set to "Random Forest"
     worksheet = sh.worksheet(worksheet_name)
     cells = worksheet.range('D2:D')
 
@@ -331,11 +345,9 @@ def apply_formatting():
                 "endColumnIndex": 4
             }, cell_format)
 
-# Function to be called from crypto_analysis.py
 def run_rf():
     update_google_sheets_with_predictions()
     apply_formatting()
 
 if __name__ == "__main__":
     run_rf()
-
