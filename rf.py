@@ -173,20 +173,20 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
         trade_direction = 0  # No trade
     
     # Execute trade if direction matches the predicted direction and trade hasn't been executed after update
-    if direction == 1 and trade_direction == 1 and not trade_status[sheet_name]:
+    if direction == 1 and trade_direction == 1 and not trade_status[worksheet_name]:
         entry_price = long_entry
         stop_loss_price = long_stop_loss
         take_profit_price = long_take_profit
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
-        trade_status[sheet_name] = True
-    elif direction == -1 and trade_direction == -1 and not trade_status[sheet_name]:
+        trade_status[worksheet_name] = True
+    elif direction == -1 and trade_direction == -1 and not trade_status[worksheet_name]:
         entry_price = short_entry
         stop_loss_price = short_stop_loss
         take_profit_price = short_take_profit
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
-        trade_status[sheet_name] = True
+        trade_status[worksheet_name] = True
     else:
         entry_price = None
         stop_loss_price = None
@@ -196,29 +196,28 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
     
     # Determine trade outcome (Profit or Loss) based on current market conditions
     current_price = df.iloc[-1]['Price']
-    if direction == 1:  # Long trade
-        if current_price >= take_profit_price:
-            trade_outcome = 'Profit'
-            profit_loss = reward
-        elif current_price <= stop_loss_price:
-            trade_outcome = 'Loss'
-            profit_loss = -risk
-        else:
-            trade_outcome = 'Open'
-            profit_loss = 0
-    elif direction == -1:  # Short trade
-        if current_price <= take_profit_price:
-            trade_outcome = 'Profit'
-            profit_loss = reward
-        elif current_price >= stop_loss_price:
-            trade_outcome = 'Loss'
-            profit_loss = -risk
-        else:
-            trade_outcome = 'Open'
-            profit_loss = 0
-    else:
-        trade_outcome = 'No Trade'
-        profit_loss = 0
+    trade_outcome = 'No Trade'
+    profit_loss = 0
+    
+    if entry_price is not None and stop_loss_price is not None and take_profit_price is not None:
+        if direction == 1:  # Long trade
+            if current_price >= take_profit_price:
+                trade_outcome = 'Profit'
+                profit_loss = reward
+            elif current_price <= stop_loss_price:
+                trade_outcome = 'Loss'
+                profit_loss = -risk
+            else:
+                trade_outcome = 'Open'
+        elif direction == -1:  # Short trade
+            if current_price <= take_profit_price:
+                trade_outcome = 'Profit'
+                profit_loss = reward
+            elif current_price >= stop_loss_price:
+                trade_outcome = 'Loss'
+                profit_loss = -risk
+            else:
+                trade_outcome = 'Open'
     
     # Update account balance based on trade outcome
     account_balance += profit_loss
@@ -262,7 +261,7 @@ def update_google_sheets_with_predictions():
 
             # Execute trade based on predictions
             entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss = execute_trade(
-                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name
+                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, worksheet_name
             )
 
             # Determine trade type based on direction
