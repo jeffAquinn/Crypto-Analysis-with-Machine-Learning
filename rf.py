@@ -158,16 +158,27 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
     df = calculate_vwap(df)
     df = calculate_wavetrend(df)
     df = calculate_mfi(df)
-    
+
+    # Extract the latest values
     latest_vwap = df['VWAP'].iloc[-1]
     latest_wavetrend1 = df['WaveTrend1'].iloc[-1]
     latest_wavetrend2 = df['WaveTrend2'].iloc[-1]
     latest_mfi = df['MFI'].iloc[-1]
-    
-    # Determine trade direction based on VWAP, WaveTrend, and MFI
-    if latest_vwap > latest_wavetrend1 and latest_vwap > latest_wavetrend2 and latest_mfi > 50:
+
+    # Function to get the last MFI value
+    def get_last_mfi(df):
+        if len(df['MFI']) > 1:
+            return df['MFI'].iloc[-2]
+        else:
+            return None  # or some default value
+
+    # Get the last MFI value
+    last_mfi = get_last_mfi(df)
+
+    # Determine trade direction based on the new criteria
+    if latest_vwap > -0.8 and latest_wavetrend1 > latest_wavetrend2 and latest_mfi > last_mfi:
         trade_direction = 1  # Bullish (Long)
-    elif latest_vwap < latest_wavetrend1 and latest_vwap < latest_wavetrend2 and latest_mfi < 50:
+    elif latest_vwap < 0.8 and latest_wavetrend1 < latest_wavetrend2 and latest_mfi < last_mfi:
         trade_direction = -1  # Bearish (Short)
     else:
         trade_direction = 0  # No trade
