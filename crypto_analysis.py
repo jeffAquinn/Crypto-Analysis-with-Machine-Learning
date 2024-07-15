@@ -1,4 +1,3 @@
-# crypto_analysis.py
 import ccxt
 import pandas as pd
 import gspread
@@ -8,7 +7,12 @@ from datetime import datetime
 import pytz
 import schedule
 import time
-from rf import run_rf  # Import the function from rf.py
+from rf import run_rf
+import logging
+import sys
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
 
 # Google Sheets credentials
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -16,9 +20,14 @@ SERVICE_ACCOUNT_FILE = 'service_account.json'
 SPREADSHEET_NAME = 'CCXT-DATA'  # Update with your Google Sheet name
 
 # Initialize Google Sheets client
-credentials = ServiceAccountCredentials.from_json_keyfile_name(SERVICE_ACCOUNT_FILE, SCOPES)
-gc = gspread.authorize(credentials)
-sh = gc.open(SPREADSHEET_NAME)
+try:
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(SERVICE_ACCOUNT_FILE, SCOPES)
+    gc = gspread.authorize(credentials)
+    sh = gc.open(SPREADSHEET_NAME)
+    logging.info(f"Successfully connected to Google Sheets: {SPREADSHEET_NAME}")
+except Exception as e:
+    logging.error(f"Failed to connect to Google Sheets: {str(e)}")
+    sys.exit(1)
 
 # CCXT exchanges
 exchanges = {
@@ -47,7 +56,7 @@ def fetch_market_data(exchange, symbol):
             'Ticker': ticker
         }
     except Exception as e:
-        print(f"Error fetching data for {symbol} on {exchange.name}: {str(e)}")
+        logging.error(f"Error fetching data for {symbol} on {exchange.name}: {str(e)}")
         return None
 
 def analyze_liquidity(l2_orderbook, price):
@@ -142,7 +151,11 @@ def fetch_and_analyze_data():
     return dfs
 
 def update_google_sheets():
-    dfs = fetch_and_analyze_data()
+    try:
+        dfs = fetch_and_analyze_data()
+    except Exception as e:
+        logging.error(f"Error fetching and analyzing data: {str(e)}")
+        return
 
     # Replace NaN and infinite values with suitable defaults
     for symbol, df in dfs.items():
@@ -152,15 +165,20 @@ def update_google_sheets():
     mountain_time = datetime.now(pytz.timezone('US/Mountain'))
     date_str = mountain_time.strftime('%b/%d/%Y')
 
-    try:
-        for symbol, sheet_name in TRADING_PAIRS.items():
-            df = dfs[symbol]
+    for symbol, sheet_name in TRADING_PAIRS.items():
+        df = dfs[symbol]
 
+        try:
             worksheet = sh.worksheet(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            logging.warning(f"Worksheet '{sheet_name}' not found. Creating it.")
+            worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="50")
+
+        try:
             existing_data = worksheet.get_all_values()
             headers = ['Date'] + df.columns.values.tolist()
             
-            new_data = [[date_str] + row for row in df.values.tolist()]
+            new_data = [[date_str] + row.tolist() for _, row in df.iterrows()]
 
             # Prepare data to update
             updated_data = [headers] + new_data + existing_data[1:]
@@ -168,26 +186,39 @@ def update_google_sheets():
             # Update worksheet with the new data
             worksheet.clear()
             worksheet.update(updated_data)
-            print(f"Data for {symbol} updated successfully.")
-    except Exception as e:
-        print(f"Error updating Google Sheets: {str(e)}")
+            logging.info(f"Data for {symbol} updated successfully.")
+        except Exception as e:
+            logging.error(f"Error updating {symbol} sheet: {str(e)}")
 
 def run_scheduler():
+    logging.info("Starting initial update...")
     update_google_sheets()  # Initial run
-    run_rf()  # Run rf.py logic after updating Google Sheets
+    logging.info("Initial update completed.")
+    
+    logging.info("Running rf.py logic...")
+    try:
+        run_rf()  # Run rf.py logic after updating Google Sheets
+        logging.info("rf.py logic completed.")
+    except Exception as e:
+        logging.error(f"Error running rf.py: {str(e)}")
 
-    # Schedule the update every hour
-    schedule.every(6).hours.do(update_google_sheets)
-    schedule.every(6).hours.do(run_rf)  # Schedule rf.py logic to run after updating Google Sheets
+    # Schedule the update every 30 minutes
+    schedule.every(30).minutes.do(update_google_sheets)
+    schedule.every(30).minutes.do(run_rf)
 
     while True:
-        # Get current time in US/Mountain timezone
         now = datetime.now(pytz.timezone('US/Mountain'))
         if now.strftime('%H:%M') == '07:00':
+            logging.info("Running daily update at 07:00 Mountain Time.")
             update_google_sheets()
-            run_rf()  # Run rf.py logic after updating Google Sheets
+            run_rf()
         schedule.run_pending()
         time.sleep(60)  # Sleep for 60 seconds
 
 if __name__ == "__main__":
-    run_scheduler()
+    logging.info("Script started.")
+    try:
+        run_scheduler()
+    except Exception as e:
+        logging.error(f"Unexpected error in main script execution: {str(e)}")
+        sys.exit(1)
