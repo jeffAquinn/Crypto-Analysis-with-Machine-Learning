@@ -68,6 +68,35 @@ def get_data(sheet_name):
     
     return df
 
+def calculate_vwap(df):
+    df['Cumulative_TPV'] = (df['Price'] * df['Volume']).cumsum()
+    df['Cumulative_Volume'] = df['Volume'].cumsum()
+    df['VWAP'] = df['Cumulative_TPV'] / df['Cumulative_Volume']
+    return df
+
+def calculate_wavetrend(df, channel_length=9, average_length=12, wt_ma_length=3):
+    hlc3 = (df['High Price'] + df['Low Price'] + df['Close Price']) / 3
+    esa = hlc3.ewm(span=channel_length, adjust=False).mean()
+    de = abs(hlc3 - esa).ewm(span=channel_length, adjust=False).mean()
+    ci = (hlc3 - esa) / (0.015 * de)
+    tci = ci.ewm(span=average_length, adjust=False).mean()
+    wt1 = tci
+    wt2 = wt1.rolling(window=wt_ma_length).mean()
+    df['WaveTrend1'] = wt1
+    df['WaveTrend2'] = wt2
+    return df
+
+def calculate_mfi(df, period=14):
+    typical_price = (df['High Price'] + df['Low Price'] + df['Close Price']) / 3
+    money_flow = typical_price * df['Volume']
+    positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0)
+    negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0)
+    positive_mf = positive_flow.rolling(window=period).sum()
+    negative_mf = negative_flow.rolling(window=period).sum()
+    mfi = 100 * (positive_mf / (positive_mf + negative_mf))
+    df['MFI'] = mfi
+    return df
+
 def train_predict(df):
     # Fill NaN values generated from the conversion with 0 or another suitable value
     df.fillna(0, inplace=True)
@@ -119,7 +148,28 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     
     return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
 
-def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit):
+def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df):
+    # Calculate VWAP, WaveTrend, and MFI
+    df = calculate_vwap(df)
+    df = calculate_wavetrend(df)
+    df = calculate_mfi(df)
+    
+    latest_vwap = df['VWAP'].iloc[-1]
+    latest_wavetrend1 = df['WaveTrend1'].iloc[-1]
+    latest_wavetrend2 = df['WaveTrend2'].iloc[-1]
+    latest_mfi = df['MFI'].iloc[-1]
+    
+    # Determine trade based on VWAP, WaveTrend, and MFI
+    if latest_mfi > 0 and latest_mfi < 20:  # Extreme buy condition
+        direction = 1
+    elif latest_mfi > 80 and latest_mfi < 100:  # Extreme sell condition
+        direction = 0
+    else:
+        if latest_vwap > 0 and latest_wavetrend1 > latest_wavetrend2:
+            direction = 1
+        elif latest_vwap < 0 and latest_wavetrend1 < latest_wavetrend2:
+            direction = 0
+    
     if direction == 1:  # Bullish (Long)
         entry_price = long_entry
         stop_loss_price = long_stop_loss
@@ -164,7 +214,7 @@ def update_google_sheets_with_predictions():
 
             # Execute trade based on predictions
             entry_price, stop_loss_price, take_profit_price, risk, reward = execute_trade(
-                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
+                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df
             )
 
             # Determine trade outcome and profit/loss
