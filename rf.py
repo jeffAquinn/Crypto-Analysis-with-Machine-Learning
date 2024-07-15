@@ -183,7 +183,7 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
         risk = 0.02 * account_balance
         reward = 0.09 * account_balance
 
-    return entry_price, stop_loss_price, take_profit_price, risk, reward
+    return entry_price, stop_loss_price, take_profit_price, risk, reward, direction
 
 def update_google_sheets_with_predictions():
     # Get the current date in the format "Jul/7/2024"
@@ -199,7 +199,11 @@ def update_google_sheets_with_predictions():
             'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
         ]
         
-        account_balance = 1000  # Initial balance
+        if len(existing_data) > 1:
+            last_row = existing_data[-1]
+            account_balance = float(last_row[2])  # Get the last account balance
+        else:
+            account_balance = 1000  # Initial balance
         
         new_rows = []
         for symbol, sheet_name in SHEET_NAMES.items():
@@ -213,19 +217,21 @@ def update_google_sheets_with_predictions():
             )
 
             # Execute trade based on predictions
-            entry_price, stop_loss_price, take_profit_price, risk, reward = execute_trade(
+            entry_price, stop_loss_price, take_profit_price, risk, reward, direction = execute_trade(
                 account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df
             )
 
             # Determine trade outcome and profit/loss
-            if predicted_direction == 1:  # Long trade
+            if direction == 1:  # Long trade
                 trade_type = 'Long'
                 if current_price >= take_profit_price:
                     trade_outcome = 'Profit'
                     profit_loss = reward
+                    account_balance += profit_loss
                 elif current_price <= stop_loss_price:
                     trade_outcome = 'Loss'
                     profit_loss = -risk
+                    account_balance += profit_loss
                 else:
                     trade_outcome = 'Open'
                     profit_loss = 0
@@ -234,15 +240,15 @@ def update_google_sheets_with_predictions():
                 if current_price <= take_profit_price:
                     trade_outcome = 'Profit'
                     profit_loss = reward
+                    account_balance += profit_loss
                 elif current_price >= stop_loss_price:
                     trade_outcome = 'Loss'
                     profit_loss = -risk
+                    account_balance += profit_loss
                 else:
                     trade_outcome = 'Open'
                     profit_loss = 0
 
-            account_balance += profit_loss  # Update account balance
-            
             new_row = [
                 date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
                 predicted_price, entry_price, stop_loss_price, take_profit_price
