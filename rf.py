@@ -199,11 +199,15 @@ def update_google_sheets_with_predictions():
             'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
         ]
         
-        if len(existing_data) > 1:
-            last_row = existing_data[-1]
-            account_balance = float(last_row[2])  # Get the last account balance
-        else:
-            account_balance = 1000  # Initial balance
+        # Find the Account Balance from rows 2 to 4 in column C
+        account_balance = None
+        for row in existing_data[1:4]:  # Check rows 2 to 4
+            if len(row) >= 3 and row[2]:  # Ensure the row has at least 3 elements and the cell is not empty
+                account_balance = float(row[2].replace(',', ''))  # Remove commas and convert to float
+                break
+        
+        if account_balance is None:
+            account_balance = 1000.0  # Set initial balance if no valid balance found
         
         new_rows = []
         for symbol, sheet_name in SHEET_NAMES.items():
@@ -249,6 +253,7 @@ def update_google_sheets_with_predictions():
                     trade_outcome = 'Open'
                     profit_loss = 0
 
+            # Append the new row
             new_row = [
                 date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
                 predicted_price, entry_price, stop_loss_price, take_profit_price
@@ -333,3 +338,4 @@ def run_rf():
 
 if __name__ == "__main__":
     run_rf()
+
