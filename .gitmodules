@@ -1,1 +1,4 @@
-"[submodule \"auto-gpt\"]\n    path = auto-gpt\n    url = https://github.com/Significant-Gravitas/Auto-GPT.git" 
+\tpath = auto-gpt 
+[submodule "auto-gpt"]
+    path = auto-gpt
+    url = https://github.com/Significant-Gravitas/Auto-GPT.git
