@@ -150,10 +150,17 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     short_take_profit = short_entry * 0.91
     
     return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
-
+        
 def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name):
     worksheet_name = "Random Forest"  # Ensure the sheet_name is set to "Random Forest"
     
+        # Function to get the last MFI value
+    def get_last_mfi(df):
+        if len(df['MFI']) > 1:
+            return df['MFI'].iloc[-2]
+        else:
+            return None  # or some default value
+        
     # Calculate VWAP, WaveTrend, and MFI
     df = calculate_vwap(df)
     df = calculate_wavetrend(df)
@@ -164,15 +171,6 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
     latest_wavetrend1 = df['WaveTrend1'].iloc[-1]
     latest_wavetrend2 = df['WaveTrend2'].iloc[-1]
     latest_mfi = df['MFI'].iloc[-1]
-
-    # Function to get the last MFI value
-    def get_last_mfi(df):
-        if len(df['MFI']) > 1:
-            return df['MFI'].iloc[-2]
-        else:
-            return None  # or some default value
-
-    # Get the last MFI value
     last_mfi = get_last_mfi(df)
 
     # Determine trade direction based on the new criteria
