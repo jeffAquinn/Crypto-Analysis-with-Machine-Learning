@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 import schedule
 import time
-from rf import run_rf
+from rf import run_rf, get_trade_signals
 import logging
 import sys
 
@@ -190,6 +190,17 @@ def update_google_sheets():
         except Exception as e:
             logging.error(f"Error updating {symbol} sheet: {str(e)}")
 
+def execute_trades(signals):
+    for symbol, signal in signals.items():
+        if signal['action'] == 'buy':
+            # Execute a buy order
+            logging.info(f"Executing buy order for {symbol}")
+            # Place the buy order logic here
+        elif signal['action'] == 'sell':
+            # Execute a sell order
+            logging.info(f"Executing sell order for {symbol}")
+            # Place the sell order logic here
+
 def run_scheduler():
     logging.info("Starting initial update...")
     update_google_sheets()  # Initial run
@@ -197,21 +208,24 @@ def run_scheduler():
     
     logging.info("Running rf.py logic...")
     try:
-        run_rf()  # Run rf.py logic after updating Google Sheets
+        signals = run_rf()  # Run rf.py logic after updating Google Sheets
         logging.info("rf.py logic completed.")
+        execute_trades(signals)  # Execute trades based on the signals
     except Exception as e:
         logging.error(f"Error running rf.py: {str(e)}")
 
     # Schedule the update every 30 minutes
     schedule.every(30).minutes.do(update_google_sheets)
     schedule.every(30).minutes.do(run_rf)
+    schedule.every(30).minutes.do(execute_trades)
 
     while True:
         now = datetime.now(pytz.timezone('US/Mountain'))
         if now.strftime('%H:%M') == '07:00':
             logging.info("Running daily update at 07:00 Mountain Time.")
             update_google_sheets()
-            run_rf()
+            signals = run_rf()
+            execute_trades(signals)
         schedule.run_pending()
         time.sleep(60)  # Sleep for 60 seconds
 
