@@ -1,4 +1,3 @@
-\tpath = auto-gpt 
 [submodule "auto-gpt"]
     path = auto-gpt
     url = https://github.com/Significant-Gravitas/Auto-GPT.git
