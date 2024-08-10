@@ -9,6 +9,7 @@ import schedule
 import time
 import logging
 import sys
+import subprocess
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', stream=sys.stdout)
@@ -113,6 +114,13 @@ def analyze_leverage_ratio(trades):
         'long_ratio': longs / (longs + shorts) if (longs + shorts) else 0,
         'short_ratio': shorts / (longs + shorts) if (longs + shorts) else 0
     }
+
+def run_rf_script():
+    try:
+        subprocess.run(['python', 'rf.py'], check=True)
+        logging.info("Successfully executed rf.py")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error executing rf.py: {str(e)}")
 
 def fetch_and_analyze_data():
     all_data = {symbol: [] for symbol in TRADING_PAIRS.keys()}
@@ -228,6 +236,9 @@ def update_google_sheets():
             logging.info(f"Data for {symbol} updated successfully.")
         except Exception as e:
             logging.error(f"Error updating {symbol} sheet: {str(e)}")
+
+    # Run the rf.py script after updating Google Sheets
+    run_rf_script()
 
 def run_scheduler():
     logging.info("Starting initial update...")
