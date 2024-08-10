@@ -7,7 +7,6 @@ from datetime import datetime
 import pytz
 import schedule
 import time
-from rf import run_rf
 import logging
 import sys
 
@@ -48,16 +47,44 @@ def fetch_market_data(exchange, symbol):
         ticker = exchange.fetch_ticker(symbol)
         l2_orderbook = exchange.fetch_l2_order_book(symbol)
         trades = exchange.fetch_trades(symbol)
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)  # Fetch 100 hours of OHLCV data
 
         return {
             'symbol': symbol,
             'L2 Orderbook': l2_orderbook,
             'Trades': trades,
-            'Ticker': ticker
+            'Ticker': ticker,
+            'OHLCV': ohlcv
         }
     except Exception as e:
         logging.error(f"Error fetching data for {symbol} on {exchange.name}: {str(e)}")
         return None
+
+def calculate_vwap(df):
+    df['Cumulative_TPV'] = (df['Close Price'] * df['Volume']).cumsum()
+    df['Cumulative_Volume'] = df['Volume'].cumsum()
+    df['VWAP'] = df['Cumulative_TPV'] / df['Cumulative_Volume']
+    return df['VWAP'].iloc[-1] if not df['VWAP'].empty else np.nan
+
+def calculate_wavetrend(df, channel_length=9, average_length=12, wt_ma_length=3):
+    hlc3 = (df['High Price'] + df['Low Price'] + df['Close Price']) / 3
+    esa = hlc3.ewm(span=channel_length, adjust=False).mean()
+    de = abs(hlc3 - esa).ewm(span=channel_length, adjust=False).mean()
+    ci = (hlc3 - esa) / (0.015 * de)
+    tci = ci.ewm(span=average_length, adjust=False).mean()
+    wt1 = tci
+    wt2 = wt1.rolling(window=wt_ma_length).mean()
+    return wt1.iloc[-1] if not wt1.empty else np.nan, wt2.iloc[-1] if not wt2.empty else np.nan
+
+def calculate_mfi(df, period=14):
+    typical_price = (df['High Price'] + df['Low Price'] + df['Close Price']) / 3
+    money_flow = typical_price * df['Volume']
+    positive_flow = money_flow.where(typical_price > typical_price.shift(1), 0)
+    negative_flow = money_flow.where(typical_price < typical_price.shift(1), 0)
+    positive_mf = positive_flow.rolling(window=period).sum()
+    negative_mf = negative_flow.rolling(window=period).sum()
+    mfi = 100 * (positive_mf / (positive_mf + negative_mf))
+    return mfi.iloc[-1] if not mfi.empty else np.nan
 
 def analyze_liquidity(l2_orderbook, price):
     bids = l2_orderbook['bids']
@@ -94,59 +121,71 @@ def fetch_and_analyze_data():
         for symbol in TRADING_PAIRS.keys():
             data = fetch_market_data(exchange, symbol)
             if data:
-                price = data['Ticker']['last']
-                open_price = data['Ticker']['open']
-                close_price = data['Ticker']['close']
-                high_price = data['Ticker']['high']  
-                low_price = data['Ticker']['low']  
+                # Convert OHLCV data to DataFrame
+                ohlcv_df = pd.DataFrame(data['OHLCV'], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                ohlcv_df['timestamp'] = pd.to_datetime(ohlcv_df['timestamp'], unit='ms')
+                ohlcv_df.set_index('timestamp', inplace=True)
+
+                # Calculate additional columns
+                ohlcv_df.rename(columns={'close': 'Close Price', 'high': 'High Price', 'low': 'Low Price', 'volume': 'Volume'}, inplace=True)
+                ohlcv_df['Price'] = ohlcv_df['Close Price']  # Assuming close price as the last price
+
+                vwap = calculate_vwap(ohlcv_df)
+                wavetrend1, wavetrend2 = calculate_wavetrend(ohlcv_df)
+                mfi = calculate_mfi(ohlcv_df)
+
+                # Fetch the latest ticker data for the most recent row
+                ticker = data['Ticker']
+                price = ticker['last']
+                open_price = ticker['open']
+                close_price = ticker['close']
+                high_price = ticker['high']
+                low_price = ticker['low']
+
                 liquidity_analysis = analyze_liquidity(data['L2 Orderbook'], price)
                 leverage_analysis = analyze_leverage_ratio(data['Trades'])
 
-                # Adding L2 order book data converted to USD
-                l2_bids_usd = [bid[0] * bid[1] for bid in data['L2 Orderbook']['bids'][:5]]
-                l2_asks_usd = [ask[0] * ask[1] for ask in data['L2 Orderbook']['asks'][:5]]
-
-                # Ensure there are 5 levels, fill missing with 0
-                while len(l2_bids_usd) < 5:
-                    l2_bids_usd.append(0)
-                while len(l2_asks_usd) < 5:
-                    l2_asks_usd.append(0)
-
+                # Create DataFrame with all required data including indicators
                 all_data[symbol].append({
                     'Exchange': exchange_name,
                     'Symbol': symbol,
                     'Price': price,
                     'Open Price': open_price,
                     'Close Price': close_price,
-                    'High Price': high_price,  
-                    'Low Price': low_price,  
-                    'Volume': data['Ticker']['baseVolume'],
+                    'High Price': high_price,
+                    'Low Price': low_price,
+                    'Volume': ticker['baseVolume'],
                     'Bid Liquidity USD': liquidity_analysis['bid_liquidity_usd'],
                     'Ask Liquidity USD': liquidity_analysis['ask_liquidity_usd'],
                     'Long Ratio': leverage_analysis['long_ratio'],
                     'Short Ratio': leverage_analysis['short_ratio'],
-                    'Market Depth': liquidity_analysis['market_depth'],                    
-                    'Bid Ask Spread': liquidity_analysis['bid_ask_spread'],                    
+                    'Market Depth': liquidity_analysis['market_depth'],
+                    'Bid Ask Spread': liquidity_analysis['bid_ask_spread'],
                     'Bid Ask Ratio': liquidity_analysis['bid_ask_ratio'],
-                    'L2 Bid 1 USD': l2_bids_usd[0],
-                    'L2 Bid 2 USD': l2_bids_usd[1],
-                    'L2 Bid 3 USD': l2_bids_usd[2],
-                    'L2 Bid 4 USD': l2_bids_usd[3],
-                    'L2 Bid 5 USD': l2_bids_usd[4],
-                    'L2 Ask 1 USD': l2_asks_usd[0],
-                    'L2 Ask 2 USD': l2_asks_usd[1],
-                    'L2 Ask 3 USD': l2_asks_usd[2],
-                    'L2 Ask 4 USD': l2_asks_usd[3],
-                    'L2 Ask 5 USD': l2_asks_usd[4]
+                    'L2 Bid 1 USD': data['L2 Orderbook']['bids'][0][0] * data['L2 Orderbook']['bids'][0][1] if len(data['L2 Orderbook']['bids']) > 0 else 0,
+                    'L2 Bid 2 USD': data['L2 Orderbook']['bids'][1][0] * data['L2 Orderbook']['bids'][1][1] if len(data['L2 Orderbook']['bids']) > 1 else 0,
+                    'L2 Bid 3 USD': data['L2 Orderbook']['bids'][2][0] * data['L2 Orderbook']['bids'][2][1] if len(data['L2 Orderbook']['bids']) > 2 else 0,
+                    'L2 Bid 4 USD': data['L2 Orderbook']['bids'][3][0] * data['L2 Orderbook']['bids'][3][1] if len(data['L2 Orderbook']['bids']) > 3 else 0,
+                    'L2 Bid 5 USD': data['L2 Orderbook']['bids'][4][0] * data['L2 Orderbook']['bids'][4][1] if len(data['L2 Orderbook']['bids']) > 4 else 0,
+                    'L2 Ask 1 USD': data['L2 Orderbook']['asks'][0][0] * data['L2 Orderbook']['asks'][0][1] if len(data['L2 Orderbook']['asks']) > 0 else 0,
+                    'L2 Ask 2 USD': data['L2 Orderbook']['asks'][1][0] * data['L2 Orderbook']['asks'][1][1] if len(data['L2 Orderbook']['asks']) > 1 else 0,
+                    'L2 Ask 3 USD': data['L2 Orderbook']['asks'][2][0] * data['L2 Orderbook']['asks'][2][1] if len(data['L2 Orderbook']['asks']) > 2 else 0,
+                    'L2 Ask 4 USD': data['L2 Orderbook']['asks'][3][0] * data['L2 Orderbook']['asks'][3][1] if len(data['L2 Orderbook']['asks']) > 3 else 0,
+                    'L2 Ask 5 USD': data['L2 Orderbook']['asks'][4][0] * data['L2 Orderbook']['asks'][4][1] if len(data['L2 Orderbook']['asks']) > 4 else 0,
+                    'VWAP': vwap,
+                    'WaveTrend1': wavetrend1,
+                    'WaveTrend2': wavetrend2,
+                    'MFI': mfi
                 })
 
     dfs = {symbol: pd.DataFrame(data) for symbol, data in all_data.items()}
     for symbol, df in dfs.items():
         df.columns = [
-            'Exchange', 'Symbol', 'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
-            'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio', 
-            'Market Depth', 'Bid Ask Spread', 'Bid Ask Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
-            'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD'
+            'Exchange', 'Symbol', 'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume',
+            'Bid Liquidity USD', 'Ask Liquidity USD', 'Long Ratio', 'Short Ratio',
+            'Market Depth', 'Bid Ask Spread', 'Bid Ask Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD',
+            'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 'L2 Ask 4 USD', 'L2 Ask 5 USD',
+            'VWAP', 'WaveTrend1', 'WaveTrend2', 'MFI'
         ]
     return dfs
 
@@ -177,7 +216,7 @@ def update_google_sheets():
         try:
             existing_data = worksheet.get_all_values()
             headers = ['Date'] + df.columns.values.tolist()
-            
+
             new_data = [[date_str] + row.tolist() for _, row in df.iterrows()]
 
             # Prepare data to update
@@ -195,23 +234,14 @@ def run_scheduler():
     update_google_sheets()  # Initial run
     logging.info("Initial update completed.")
     
-    logging.info("Running rf.py logic...")
-    try:
-        run_rf()  # Run rf.py logic after updating Google Sheets
-        logging.info("rf.py logic completed.")
-    except Exception as e:
-        logging.error(f"Error running rf.py: {str(e)}")
-
     # Schedule the update every 30 minutes
     schedule.every(30).minutes.do(update_google_sheets)
-    schedule.every(30).minutes.do(run_rf)
 
     while True:
         now = datetime.now(pytz.timezone('US/Mountain'))
         if now.strftime('%H:%M') == '07:00':
             logging.info("Running daily update at 07:00 Mountain Time.")
             update_google_sheets()
-            run_rf()
         schedule.run_pending()
         time.sleep(60)  # Sleep for 60 seconds
 
