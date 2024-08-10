@@ -19,14 +19,13 @@ gc = gspread.authorize(credentials)
 sh = gc.open(SPREADSHEET_NAME)
 
 # Sheets corresponding to each trading pair
-SHEET_NAMES = {
-    'BTC/USDT': 'BTC',
-    'SOL/USDT': 'SOL',
-    'ATOM/USDT': 'ATOM'
-}
+SHEET_NAME = 'BTC'  # Only BTC sheet is used
 
 # Trade status tracking dictionary
-trade_status = {pair: False for pair in SHEET_NAMES.keys()}
+trade_status = {SHEET_NAME: False}
+
+# Initialize account balance
+account_balance = 10000  # Set an initial value for account balance
 
 def get_data(sheet_name):
     worksheet = sh.worksheet(sheet_name)
@@ -181,6 +180,8 @@ def update_google_sheets_with_predictions():
     mountain_time = datetime.now(pytz.timezone('US/Mountain'))
     date_str = mountain_time.strftime('%b/%d/%Y')
     
+    global account_balance  # Declare account_balance as global to modify it
+    
     try:
         worksheet_name = "Random Forest"
         worksheet = sh.worksheet(worksheet_name)
@@ -196,12 +197,10 @@ def update_google_sheets_with_predictions():
             headers = existing_data[0]
         
         new_rows = []
-        for symbol, sheet_name in SHEET_NAMES.items():
-            df = get_data(sheet_name)
-            if df.empty:
-                print(f"No data for {sheet_name}")
-                continue
-            
+        df = get_data(SHEET_NAME)
+        if df.empty:
+            print(f"No data for {SHEET_NAME}")
+        else:
             current_price = df.iloc[-1]['Price']
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
 
@@ -210,13 +209,13 @@ def update_google_sheets_with_predictions():
             )
 
             entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance = execute_trade(
-                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name
+                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, SHEET_NAME
             )
 
             trade_type = 'Long' if predicted_direction == 1 else 'Short'
 
             new_row = [
-                date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
+                date_str, SHEET_NAME, account_balance, trade_type, trade_outcome, profit_loss,
                 predicted_price, entry_price, stop_loss_price, take_profit_price
             ]
             new_rows.append(new_row)
