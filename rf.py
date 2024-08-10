@@ -187,14 +187,15 @@ def update_google_sheets_with_predictions():
         worksheet = sh.worksheet(worksheet_name)
         existing_data = worksheet.get_all_values()
         
+        headers = []
         if len(existing_data) < 1:
             headers = [
                 'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
                 'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
             ]
-            existing_data.append(headers)
+            worksheet.append_row(headers)  # Append headers if no existing data
         else:
-            headers = existing_data[0]
+            headers = existing_data[0]  # Assume headers are in the first row
         
         new_rows = []
         df = get_data(SHEET_NAME)
@@ -221,9 +222,8 @@ def update_google_sheets_with_predictions():
             new_rows.append(new_row)
         
         if new_rows:
-            updated_data = [headers] + new_rows
-            worksheet.clear()
-            worksheet.update(updated_data)
+            for row in new_rows:
+                worksheet.append_row(row)  # Append new rows to the existing data
             print("Data updated successfully.")
         else:
             print("No new data to update.")
