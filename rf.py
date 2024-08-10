@@ -32,90 +32,85 @@ def get_data(sheet_name):
     worksheet = sh.worksheet(sheet_name)
     data = worksheet.get_all_values()
     
-    # Extract the header (first row) for column names
+    if not data:
+        return pd.DataFrame()  # Return empty DataFrame if no data found
+    
     header = data[0]
-    
-    # Extract the data starting from the second row
     data = data[1:]
-    
-    # Convert to DataFrame
     df = pd.DataFrame(data, columns=header)
     
-    # Specify the relevant columns
     relevant_columns = [
         'Date', 'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
         'Bid Ask Spread', 'Market Depth', 
         'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 
         'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
         'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 
-        'L2 Ask 4 USD', 'L2 Ask 5 USD'
+        'L2 Ask 4 USD', 'L2 Ask 5 USD', 'VWAP', 'WaveTrend1', 'WaveTrend2', 'MFI'
     ]
     
-    # Filter the DataFrame to keep only the relevant columns
+    if not set(relevant_columns).issubset(df.columns):
+        print(f"Missing columns in {sheet_name}")
+        return pd.DataFrame()
+    
     df = df[relevant_columns]
     
-    # Convert numeric columns to appropriate data types
     numeric_columns = [
         'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
         'Bid Ask Spread', 'Market Depth', 
         'Bid Ask Ratio', 'Bid Liquidity USD', 'Ask Liquidity USD', 
         'Long Ratio', 'Short Ratio', 'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
         'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 
-        'L2 Ask 4 USD', 'L2 Ask 5 USD'
+        'L2 Ask 4 USD', 'L2 Ask 5 USD', 'VWAP', 'WaveTrend1', 'WaveTrend2', 'MFI'
     ]
+    
     for col in numeric_columns:
         df[col] = pd.to_numeric(df[col].str.replace(',', ''), errors='coerce')
     
-    # Handle NaN values in the Price column by forward filling
     df['Price'] = df['Price'].ffill()
     
     return df
 
 def train_predict(df):
-    # Fill NaN values generated from the conversion with 0 or another suitable value
+    if df.empty:
+        return None, None, 0  # Return default values for empty DataFrame
+    
     df.fillna(0, inplace=True)
     df.replace([np.inf, -np.inf], 0, inplace=True)
     
-    # Features for training
     features = [
         'Price', 'Open Price', 'Close Price', 'High Price', 'Low Price', 'Volume', 
         'Bid Liquidity USD', 'Ask Liquidity USD', 'Bid Ask Spread', 'Market Depth', 
         'Bid Ask Ratio', 'Long Ratio', 'Short Ratio', 
         'L2 Bid 1 USD', 'L2 Bid 2 USD', 'L2 Bid 3 USD', 
         'L2 Bid 4 USD', 'L2 Bid 5 USD', 'L2 Ask 1 USD', 'L2 Ask 2 USD', 'L2 Ask 3 USD', 
-        'L2 Ask 4 USD', 'L2 Ask 5 USD'
+        'L2 Ask 4 USD', 'L2 Ask 5 USD', 'VWAP', 'WaveTrend1', 'WaveTrend2', 'MFI'
     ]
     
     X = df[features]
-    y_price = df['Price'].shift(-1).fillna(0)  # Next period price for regression
-    y_direction = (y_price > df['Price']).astype(int)  # 1 if price goes up, 0 if price goes down
+    y_price = df['Price'].shift(-1).fillna(0)
+    y_direction = (y_price > df['Price']).astype(int)
     
     X_train, X_test, y_train_price, y_test_price = train_test_split(X, y_price, test_size=0.2, random_state=42)
     _, _, y_train_direction, y_test_direction = train_test_split(X, y_direction, test_size=0.2, random_state=42)
     
-    # Train Random Forest for price prediction
     rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
     rf_regressor.fit(X_train, y_train_price)
     price_pred = rf_regressor.predict(X_test)
     
-    # Train Random Forest for direction prediction
     rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
     rf_classifier.fit(X_train, y_train_direction)
     direction_pred = rf_classifier.predict(X_test)
     
-    # Evaluate accuracy
     direction_accuracy = accuracy_score(y_test_direction, direction_pred)
     print(f'Direction Prediction Accuracy: {direction_accuracy:.2f}')
     
-    return price_pred[-1], direction_pred[-1], direction_accuracy  # Return the last prediction and accuracy
+    return price_pred[-1], direction_pred[-1], direction_accuracy
 
 def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
-    # Long Entry
     long_entry = (current_price + predicted_price) / 2
     long_stop_loss = long_entry * 0.98
     long_take_profit = long_entry * 1.09
     
-    # Short Entry
     short_entry = (current_price + predicted_price) / 2
     short_stop_loss = short_entry * 1.02
     short_take_profit = short_entry * 0.91
@@ -123,28 +118,16 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
 
 def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name):
-    # Function to get the last MFI value
-    def get_last_mfi(df):
-        # Assuming MFI column exists, or this can be removed if not needed
-        if 'MFI' in df and len(df['MFI']) > 1:
-            return df['MFI'].iloc[-2]
-        else:
-            return None  # or some default value
-    
-    # Extract the latest values
     latest_price = df['Price'].iloc[-1]
-    last_mfi = get_last_mfi(df)
 
-    # Determine trade direction based on the new criteria
-    trade_direction = 0  # Default to no trade
-    if direction == 1:  # Long trade
+    trade_direction = 0
+    if direction == 1:
         if latest_price > long_entry and latest_price < long_take_profit:
             trade_direction = 1
-    elif direction == -1:  # Short trade
+    elif direction == -1:
         if latest_price < short_entry and latest_price > short_take_profit:
             trade_direction = -1
     
-    # Execute trade if direction matches the predicted direction and trade hasn't been executed after update
     if direction == 1 and trade_direction == 1 and not trade_status[sheet_name]:
         entry_price = long_entry
         stop_loss_price = long_stop_loss
@@ -166,13 +149,12 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
         risk = 0
         reward = 0
     
-    # Determine trade outcome (Profit or Loss) based on current market conditions
     current_price = df.iloc[-1]['Price']
     trade_outcome = 'No Trade'
     profit_loss = 0
     
     if entry_price is not None and stop_loss_price is not None and take_profit_price is not None:
-        if direction == 1:  # Long trade
+        if direction == 1:
             if current_price >= take_profit_price:
                 trade_outcome = 'Profit'
                 profit_loss = reward
@@ -181,7 +163,7 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
                 profit_loss = -risk
             else:
                 trade_outcome = 'Open'
-        elif direction == -1:  # Short trade
+        elif direction == -1:
             if current_price <= take_profit_price:
                 trade_outcome = 'Profit'
                 profit_loss = reward
@@ -191,66 +173,61 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
             else:
                 trade_outcome = 'Open'
     
-    # Update account balance based on trade outcome
     account_balance += profit_loss
     
-    return entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss
+    return entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance
 
 def update_google_sheets_with_predictions():
-    # Get the current date in the format "Jul/7/2024"
     mountain_time = datetime.now(pytz.timezone('US/Mountain'))
     date_str = mountain_time.strftime('%b/%d/%Y')
     
     try:
-        worksheet_name = "Random Forest"  # Ensure the sheet_name is set to "Random Forest"
+        worksheet_name = "Random Forest"
         worksheet = sh.worksheet(worksheet_name)
         existing_data = worksheet.get_all_values()
-        headers = [
-            'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
-            'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
-        ]
         
-        # Find the Account Balance from rows 2 to 4 in column C
-        account_balance = None
-        for row in existing_data[1:4]:  # Check rows 2 to 4
-            if len(row) >= 3 and row[2]:  # Ensure the row has at least 3 elements and the cell is not empty
-                account_balance = float(row[2].replace(',', ''))  # Remove commas and convert to float
-                break
-        
-        if account_balance is None:
-            account_balance = 1000.0  # Set initial balance if no valid balance found
+        if len(existing_data) < 1:
+            headers = [
+                'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
+                'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
+            ]
+            existing_data.append(headers)
+        else:
+            headers = existing_data[0]
         
         new_rows = []
         for symbol, sheet_name in SHEET_NAMES.items():
             df = get_data(sheet_name)
+            if df.empty:
+                print(f"No data for {sheet_name}")
+                continue
+            
             current_price = df.iloc[-1]['Price']
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
 
-            # Calculate entry, stop loss, and take profit prices
             long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit = calculate_entry_stop_loss_take_profit(
                 current_price, predicted_price
             )
 
-            # Execute trade based on predictions
-            entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss = execute_trade(
+            entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance = execute_trade(
                 account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name
             )
 
-            # Determine trade type based on direction
             trade_type = 'Long' if predicted_direction == 1 else 'Short'
 
-            # Append the new row
             new_row = [
                 date_str, sheet_name, account_balance, trade_type, trade_outcome, profit_loss,
                 predicted_price, entry_price, stop_loss_price, take_profit_price
             ]
             new_rows.append(new_row)
         
-        updated_data = [headers] + new_rows + existing_data[1:]
-        worksheet.clear()
-        worksheet.update(updated_data)
-        
-        print("Data updated successfully.")
+        if new_rows:
+            updated_data = [headers] + new_rows
+            worksheet.clear()
+            worksheet.update(updated_data)
+            print("Data updated successfully.")
+        else:
+            print("No new data to update.")
         
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
@@ -278,7 +255,7 @@ def format_cell_range(sheet, cell_range, cell_format):
     sh.batch_update(body)
 
 def apply_formatting():
-    worksheet_name = "Random Forest"  # Ensure the sheet_name is set to "Random Forest"
+    worksheet_name = "Random Forest"
     worksheet = sh.worksheet(worksheet_name)
     cells = worksheet.range('D2:D')
 
