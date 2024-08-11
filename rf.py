@@ -3,8 +3,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.metrics import accuracy_score, mean_squared_error
 from datetime import datetime
 import pytz
 
@@ -25,7 +25,7 @@ SHEET_NAME = 'BTC'  # Only BTC sheet is used
 trade_status = {SHEET_NAME: False}
 
 # Initialize account balance
-account_balance = 10000  # Set an initial value for account balance
+account_balance = 1000  # Set an initial value for account balance
 
 def get_data(sheet_name):
     worksheet = sh.worksheet(sheet_name)
@@ -89,21 +89,36 @@ def train_predict(df):
     y_price = df['Price'].shift(-1).fillna(0)
     y_direction = (y_price > df['Price']).astype(int)
     
-    X_train, X_test, y_train_price, y_test_price = train_test_split(X, y_price, test_size=0.2, random_state=42)
-    _, _, y_train_direction, y_test_direction = train_test_split(X, y_direction, test_size=0.2, random_state=42)
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    price_preds = []
+    direction_preds = []
+    direction_accuracies = []
+
+    for train_index, test_index in kf.split(X):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train_price, y_test_price = y_price.iloc[train_index], y_price.iloc[test_index]
+        y_train_direction, y_test_direction = y_direction.iloc[train_index], y_direction.iloc[test_index]
+        
+        rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf_regressor.fit(X_train, y_train_price)
+        price_pred = rf_regressor.predict(X_test)
+        price_preds.extend(price_pred)
+        
+        rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+        rf_classifier.fit(X_train, y_train_direction)
+        direction_pred = rf_classifier.predict(X_test)
+        direction_preds.extend(direction_pred)
+        
+        direction_accuracy = accuracy_score(y_test_direction, direction_pred)
+        direction_accuracies.append(direction_accuracy)
     
-    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
-    rf_regressor.fit(X_train, y_train_price)
-    price_pred = rf_regressor.predict(X_test)
+    final_price_pred = np.mean(price_preds)
+    final_direction_pred = np.round(np.mean(direction_preds)).astype(int)
+    final_direction_accuracy = np.mean(direction_accuracies)
     
-    rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
-    rf_classifier.fit(X_train, y_train_direction)
-    direction_pred = rf_classifier.predict(X_test)
+    print(f'Direction Prediction Accuracy: {final_direction_accuracy:.2f}')
     
-    direction_accuracy = accuracy_score(y_test_direction, direction_pred)
-    print(f'Direction Prediction Accuracy: {direction_accuracy:.2f}')
-    
-    return price_pred[-1], direction_pred[-1], direction_accuracy
+    return final_price_pred, final_direction_pred, final_direction_accuracy
 
 def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     long_entry = (current_price + predicted_price) / 2
@@ -157,18 +172,22 @@ def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_t
             if current_price >= take_profit_price:
                 trade_outcome = 'Profit'
                 profit_loss = reward
+                trade_status[sheet_name] = False  # Reset trade status
             elif current_price <= stop_loss_price:
                 trade_outcome = 'Loss'
                 profit_loss = -risk
+                trade_status[sheet_name] = False  # Reset trade status
             else:
                 trade_outcome = 'Open'
         elif direction == -1:
             if current_price <= take_profit_price:
                 trade_outcome = 'Profit'
                 profit_loss = reward
+                trade_status[sheet_name] = False  # Reset trade status
             elif current_price >= stop_loss_price:
                 trade_outcome = 'Loss'
                 profit_loss = -risk
+                trade_status[sheet_name] = False  # Reset trade status
             else:
                 trade_outcome = 'Open'
     
