@@ -133,66 +133,61 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
 
 def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name):
     latest_price = df['Price'].iloc[-1]
-
-    trade_direction = 0
-    if direction == 1:
-        if latest_price > long_entry and latest_price < long_take_profit:
-            trade_direction = 1
-    elif direction == -1:
-        if latest_price < short_entry and latest_price > short_take_profit:
-            trade_direction = -1
-    
-    if direction == 1 and trade_direction == 1 and not trade_status[sheet_name]:
-        entry_price = long_entry
-        stop_loss_price = long_stop_loss
-        take_profit_price = long_take_profit
-        risk = 0.02 * account_balance
-        reward = 0.09 * account_balance
-        trade_status[sheet_name] = True
-    elif direction == -1 and trade_direction == -1 and not trade_status[sheet_name]:
-        entry_price = short_entry
-        stop_loss_price = short_stop_loss
-        take_profit_price = short_take_profit
-        risk = 0.02 * account_balance
-        reward = 0.09 * account_balance
-        trade_status[sheet_name] = True
-    else:
-        entry_price = None
-        stop_loss_price = None
-        take_profit_price = None
-        risk = 0
-        reward = 0
-    
-    current_price = df.iloc[-1]['Price']
     trade_outcome = 'No Trade'
+    trade_direction = 0
+
+    # Determine the trade direction based on the latest price and predicted direction
+    if direction == 1 and not trade_status[sheet_name]:
+        trade_direction = check_long_trade(latest_price, long_entry, long_take_profit)
+    elif direction == -1 and not trade_status[sheet_name]:
+        trade_direction = check_short_trade(latest_price, short_entry, short_take_profit)
+
+    # Execute trade if conditions are met
+    if trade_direction == 1:  # Long trade
+        return execute_single_trade(account_balance, latest_price, long_entry, long_stop_loss, long_take_profit, sheet_name, 'Long')
+    elif trade_direction == -1:  # Short trade
+        return execute_single_trade(account_balance, latest_price, short_entry, short_stop_loss, short_take_profit, sheet_name, 'Short')
+
+    return None, None, None, 0, 0, trade_outcome, 0, account_balance
+
+def check_long_trade(latest_price, entry, take_profit):
+    return 1 if entry < latest_price < take_profit else 0
+
+def check_short_trade(latest_price, entry, take_profit):
+    return -1 if entry > latest_price > take_profit else 0
+
+def execute_single_trade(account_balance, current_price, entry_price, stop_loss_price, take_profit_price, sheet_name, trade_type):
+    global trade_status
+    
+    risk = 0.02 * account_balance  # Risk 2% of the account balance
+    reward = 0.09 * account_balance  # Target 9% profit
     profit_loss = 0
-    
-    if entry_price is not None and stop_loss_price is not None and take_profit_price is not None:
-        if direction == 1:
-            if current_price >= take_profit_price:
-                trade_outcome = 'Profit'
-                profit_loss = reward
-                trade_status[sheet_name] = False  # Reset trade status
-            elif current_price <= stop_loss_price:
-                trade_outcome = 'Loss'
-                profit_loss = -risk
-                trade_status[sheet_name] = False  # Reset trade status
-            else:
-                trade_outcome = 'Open'
-        elif direction == -1:
-            if current_price <= take_profit_price:
-                trade_outcome = 'Profit'
-                profit_loss = reward
-                trade_status[sheet_name] = False  # Reset trade status
-            elif current_price >= stop_loss_price:
-                trade_outcome = 'Loss'
-                profit_loss = -risk
-                trade_status[sheet_name] = False  # Reset trade status
-            else:
-                trade_outcome = 'Open'
-    
+    trade_outcome = 'Open'
+
+    if trade_type == 'Long':
+        if current_price >= take_profit_price:
+            trade_outcome = 'Profit'
+            profit_loss = reward
+            trade_status[sheet_name] = False
+        elif current_price <= stop_loss_price:
+            trade_outcome = 'Loss'
+            profit_loss = -risk
+            trade_status[sheet_name] = False
+    elif trade_type == 'Short':
+        if current_price <= take_profit_price:
+            trade_outcome = 'Profit'
+            profit_loss = reward
+            trade_status[sheet_name] = False
+        elif current_price >= stop_loss_price:
+            trade_outcome = 'Loss'
+            profit_loss = -risk
+            trade_status[sheet_name] = False
+
     account_balance += profit_loss
     
+    # Log the trade decision
+    print(f"Trade {trade_type} | Entry: {entry_price} | Stop: {stop_loss_price} | Take Profit: {take_profit_price} | Outcome: {trade_outcome} | P/L: {profit_loss}")
+
     return entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance
 
 def update_google_sheets_with_predictions():
