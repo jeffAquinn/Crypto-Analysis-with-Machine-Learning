@@ -131,40 +131,61 @@ def calculate_entry_stop_loss_take_profit(current_price, predicted_price):
     
     return long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit
 
-def execute_trade(account_balance, direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, sheet_name):
+# Your existing imports and code remain unchanged
+
+def check_long_trade_conditions(df):
+    # Check MFI increasing over the last three days
+    mfi_increasing = df['MFI'].iloc[-3:].is_monotonic_increasing
+    vwap_increasing = df['VWAP'].iloc[-2:].is_monotonic_increasing
+    wavetrend_increasing = df['WaveTrend1'].iloc[-2:].is_monotonic_increasing and df['WaveTrend2'].iloc[-2:].is_monotonic_increasing
+    
+    return mfi_increasing and vwap_increasing and wavetrend_increasing
+
+def check_short_trade_conditions(df):
+    # Check MFI decreasing over the last three days
+    mfi_decreasing = df['MFI'].iloc[-3:].is_monotonic_decreasing
+    vwap_decreasing = df['VWAP'].iloc[-2:].is_monotonic_decreasing
+    wavetrend_decreasing = df['WaveTrend1'].iloc[-2:].is_monotonic_decreasing and df['WaveTrend2'].iloc[-2:].is_monotonic_decreasing
+    
+    return mfi_decreasing and vwap_decreasing and wavetrend_decreasing
+
+def execute_trade(account_balance, df, sheet_name):
     latest_price = df['Price'].iloc[-1]
+    yesterday_close = df['Close Price'].iloc[-2]
+    yesterday_high = df['High Price'].iloc[-2]
+    yesterday_low = df['Low Price'].iloc[-2]
+    
     trade_outcome = 'No Trade'
     trade_direction = 0
-
-    # Determine the trade direction based on the latest price and predicted direction
-    if direction == 1 and not trade_status[sheet_name]:
-        trade_direction = check_long_trade(latest_price, long_entry, long_take_profit)
-    elif direction == -1 and not trade_status[sheet_name]:
-        trade_direction = check_short_trade(latest_price, short_entry, short_take_profit)
-
-    # Execute trade if conditions are met
-    if trade_direction == 1:  # Long trade
-        return execute_single_trade(account_balance, latest_price, long_entry, long_stop_loss, long_take_profit, sheet_name, 'Long')
-    elif trade_direction == -1:  # Short trade
-        return execute_single_trade(account_balance, latest_price, short_entry, short_stop_loss, short_take_profit, sheet_name, 'Short')
-
+    first_entry_price = second_entry_price = None
+    
+    # Check long trade conditions
+    if check_long_trade_conditions(df) and not trade_status[sheet_name]:
+        trade_direction = 1
+        first_entry_price = yesterday_close
+        second_entry_price = yesterday_low
+    # Check short trade conditions
+    elif check_short_trade_conditions(df) and not trade_status[sheet_name]:
+        trade_direction = -1
+        first_entry_price = yesterday_close
+        second_entry_price = yesterday_high
+    
+    if trade_direction != 0:
+        return execute_single_trade(account_balance, latest_price, first_entry_price, second_entry_price, trade_direction, sheet_name)
+    
     return None, None, None, 0, 0, trade_outcome, 0, account_balance
 
-def check_long_trade(latest_price, entry, take_profit):
-    return 1 if entry < latest_price < take_profit else 0
-
-def check_short_trade(latest_price, entry, take_profit):
-    return -1 if entry > latest_price > take_profit else 0
-
-def execute_single_trade(account_balance, current_price, entry_price, stop_loss_price, take_profit_price, sheet_name, trade_type):
+def execute_single_trade(account_balance, current_price, first_entry_price, second_entry_price, trade_direction, sheet_name):
     global trade_status
     
     risk = 0.02 * account_balance  # Risk 2% of the account balance
     reward = 0.09 * account_balance  # Target 9% profit
     profit_loss = 0
     trade_outcome = 'Open'
-
-    if trade_type == 'Long':
+    
+    if trade_direction == 1:  # Long trade
+        stop_loss_price = min(first_entry_price, second_entry_price) * 0.98
+        take_profit_price = max(first_entry_price, second_entry_price) * 1.09
         if current_price >= take_profit_price:
             trade_outcome = 'Profit'
             profit_loss = reward
@@ -173,7 +194,9 @@ def execute_single_trade(account_balance, current_price, entry_price, stop_loss_
             trade_outcome = 'Loss'
             profit_loss = -risk
             trade_status[sheet_name] = False
-    elif trade_type == 'Short':
+    elif trade_direction == -1:  # Short trade
+        stop_loss_price = max(first_entry_price, second_entry_price) * 1.02
+        take_profit_price = min(first_entry_price, second_entry_price) * 0.91
         if current_price <= take_profit_price:
             trade_outcome = 'Profit'
             profit_loss = reward
@@ -182,35 +205,33 @@ def execute_single_trade(account_balance, current_price, entry_price, stop_loss_
             trade_outcome = 'Loss'
             profit_loss = -risk
             trade_status[sheet_name] = False
-
+    
     account_balance += profit_loss
     
     # Log the trade decision
-    print(f"Trade {trade_type} | Entry: {entry_price} | Stop: {stop_loss_price} | Take Profit: {take_profit_price} | Outcome: {trade_outcome} | P/L: {profit_loss}")
-
-    return entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance
+    print(f"Trade {'Long' if trade_direction == 1 else 'Short'} | First Entry: {first_entry_price} | Second Entry: {second_entry_price} | Stop: {stop_loss_price} | Take Profit: {take_profit_price} | Outcome: {trade_outcome} | P/L: {profit_loss}")
+    
+    return first_entry_price, second_entry_price, stop_loss_price, risk, reward, trade_outcome, profit_loss, account_balance
 
 def update_google_sheets_with_predictions():
     mountain_time = datetime.now(pytz.timezone('US/Mountain'))
     date_str = mountain_time.strftime('%b/%d/%Y')
     
-    global account_balance  # Declare account_balance as global to modify it
+    global account_balance
     
     try:
         worksheet_name = "Random Forest"
         worksheet = sh.worksheet(worksheet_name)
         existing_data = worksheet.get_all_values()
-        
-        headers = []
-        if len(existing_data) < 1:
-            headers = [
-                'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
-                'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
-            ]
-            worksheet.insert_row(headers, 1)  # Insert headers at the top if no existing data
-        else:
-            headers = existing_data[0]  # Assume headers are in the first row
-        
+
+        headers = [
+            'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
+            'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
+        ]
+
+        if not existing_data or existing_data[0] != headers:
+            worksheet.insert_row(headers, 1)
+
         new_rows = []
         df = get_data(SHEET_NAME)
         if df.empty:
@@ -219,12 +240,8 @@ def update_google_sheets_with_predictions():
             current_price = df.iloc[-1]['Price']
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
 
-            long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit = calculate_entry_stop_loss_take_profit(
-                current_price, predicted_price
-            )
-
             entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance = execute_trade(
-                account_balance, predicted_direction, long_entry, long_stop_loss, long_take_profit, short_entry, short_stop_loss, short_take_profit, df, SHEET_NAME
+                account_balance, df, SHEET_NAME
             )
 
             trade_type = 'Long' if predicted_direction == 1 else 'Short'
@@ -234,16 +251,17 @@ def update_google_sheets_with_predictions():
                 predicted_price, entry_price, stop_loss_price, take_profit_price
             ]
             new_rows.append(new_row)
-        
+
         if new_rows:
             for row in new_rows:
-                worksheet.insert_row(row, 2)  # Insert new row at the second position (below headers)
+                worksheet.insert_row(row, 2)
             print("Data updated successfully.")
         else:
             print("No new data to update.")
-        
+
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
+
 
 def format_cell_range(sheet, cell_range, cell_format):
     body = {
