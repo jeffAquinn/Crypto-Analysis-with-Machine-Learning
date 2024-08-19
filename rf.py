@@ -173,7 +173,8 @@ def execute_trade(account_balance, df, sheet_name):
     if trade_direction != 0:
         return execute_single_trade(account_balance, latest_price, first_entry_price, second_entry_price, trade_direction, sheet_name)
     
-    return None, None, None, 0, 0, trade_outcome, 0, account_balance
+    # Return placeholders if no trade occurs
+    return None, None, None, None, 0, 0, trade_outcome, 0, account_balance  # Adjusted to return 9 values
 
 def execute_single_trade(account_balance, current_price, first_entry_price, second_entry_price, trade_direction, sheet_name):
     global trade_status
@@ -226,7 +227,7 @@ def update_google_sheets_with_predictions():
 
         headers = [
             'Date', 'Sheet Name', 'Account Balance', 'Trade Type', 'Trade Outcome', 'Profit/Loss',
-            'Predicted Price', 'Entry Price', 'Stop Loss Price', 'Take Profit Price'
+            'Predicted Price', 'First Entry Price', 'Second Entry Price', 'Stop Loss Price', 'Take Profit Price'
         ]
 
         if not existing_data or existing_data[0] != headers:
@@ -240,7 +241,7 @@ def update_google_sheets_with_predictions():
             current_price = df.iloc[-1]['Price']
             predicted_price, predicted_direction, direction_accuracy = train_predict(df)
 
-            entry_price, stop_loss_price, take_profit_price, risk, reward, trade_outcome, profit_loss, account_balance = execute_trade(
+            first_entry_price, second_entry_price, stop_loss_price, risk, reward, trade_outcome, profit_loss, account_balance = execute_trade(
                 account_balance, df, SHEET_NAME
             )
 
@@ -248,7 +249,7 @@ def update_google_sheets_with_predictions():
 
             new_row = [
                 date_str, SHEET_NAME, account_balance, trade_type, trade_outcome, profit_loss,
-                predicted_price, entry_price, stop_loss_price, take_profit_price
+                predicted_price, first_entry_price, second_entry_price, stop_loss_price, None
             ]
             new_rows.append(new_row)
 
@@ -261,7 +262,6 @@ def update_google_sheets_with_predictions():
 
     except Exception as e:
         print(f"Error updating Google Sheets: {str(e)}")
-
 
 def format_cell_range(sheet, cell_range, cell_format):
     body = {
