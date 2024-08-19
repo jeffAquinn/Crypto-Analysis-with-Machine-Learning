@@ -40,7 +40,6 @@ exchanges = {
 TRADING_PAIRS = {
     'BTC/USDT': 'BTC',
     'SOL/USDT': 'SOL',
-    'ATOM/USDT': 'ATOM'
 }
 
 def fetch_market_data(exchange, symbol):
@@ -246,7 +245,7 @@ def run_scheduler():
     logging.info("Initial update completed.")
     
     # Schedule the update every 30 minutes
-    schedule.every(30).minutes.do(update_google_sheets)
+    schedule.every(15).minutes.do(update_google_sheets)
 
     while True:
         now = datetime.now(pytz.timezone('US/Mountain'))
